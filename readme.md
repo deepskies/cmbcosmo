@@ -1,1 +1,1 @@
-The goal of this repository is to host the code for CMB cosmology inference - in particular, comparing SBI to other methods. More details to follow.
+This branch is the scratch space, hosting content that is temporary and will deleted once the project is done. This branch or its commits are not to be merged with `main` or any other branches.
