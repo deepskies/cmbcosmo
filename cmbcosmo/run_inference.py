@@ -52,6 +52,8 @@ datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'])
 starts = None
 samples = {}
 if run_mcmc:
+    print(f'\n## running mcmc .. \n')
+    time0 = time.time()
     import emcee
     from setup_mcmc import setup_mcmc 
     # pull mcmc related config details
@@ -80,8 +82,12 @@ if run_mcmc:
     sampler.run_mcmc(pos, nsteps_chain, progress=True)
     # extract samples
     samples['mcmc'] = sampler.get_chain(flat=True)
+    print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
+    print('# ----------')
 
 if run_sbi:
+    print(f'\n## running sbi .. \n')
+    time0 = time.time()
     from setup_sbi import setup_sbi
     # pull sbi related config details
     sbi_dict = config_data['inference']['sbi']
@@ -95,6 +101,8 @@ if run_sbi:
     samples['sbi'] = sbi_setup.get_samples(nsamples=sbi_dict['posterior_nsamples'],
                                            datavector=datavector
                                            )
+    print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
+    print('# ----------')
 
 if not run_mcmc and not run_sbi:
     print('\n## not sure what were doing here since run_mcmc and run_sbi are set to False .. \n')
@@ -118,4 +126,4 @@ for key in samples:
                        showplot=False,
                        savefig=True, fname=fname, outdir=outdir
                        )
-print(f'\n##time taken: {(time.time() - start_time)/60: .2f} min')
+print(f'\n## overall time taken: {(time.time() - start_time)/60: .2f} min')
