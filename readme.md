@@ -8,3 +8,8 @@ Details re setting up the conda environment for the code:
     - `cd DeepCMBsim`
     - `pip install --user -e .` (or `pip install .` if no user development is expected)
 - Set up the code here via `pip install -e .` (or `pip install .` if no user development is expected)
+
+--
+Details re the code
+- Current run script is `runscripts/run.sh` which uses the config file in `runscripts/configs` and runs inference using input flags.
+- In `cmbcosmo`, `run_inference.py` is the main script, calling various helpers, including thoese in `setup_*` and `helpers_*`. Theory/simulator is in `theory.py`.
