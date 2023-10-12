@@ -68,6 +68,6 @@ class setup_mcmc(object):
             # i.e. value outside the prior => unlikely
             return -np.inf
 
-        _, prediction = self.theory.get_prediction(cosmo_dict={'r': p})
+        prediction = self.theory.get_prediction(r=p)
         return self.loglikelihood(theory_vec=prediction) + logprior
     # ----------------------------------------------------------------------

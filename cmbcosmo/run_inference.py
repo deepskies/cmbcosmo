@@ -47,7 +47,7 @@ truths = list(config_data['datavector']['cosmo'].values())
 # -----------------------------------------------
 # set up the data vector and the theory object
 theory = theory(randomseed=config_data['datavector']['randomseed'], verbose=False)
-ells, datavector = theory.get_prediction(cosmo_dict=config_data['datavector']['cosmo'])
+datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'])
 # -----------------------------------------------
 starts = None
 samples = {}

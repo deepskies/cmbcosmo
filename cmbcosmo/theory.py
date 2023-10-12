@@ -29,18 +29,17 @@ class theory(object):
         self.config_obj.update_val('seed', randomseed)
 
     # ---------------------------------------------
-    def get_prediction(self, cosmo_dict):
+    def get_prediction(self, r):
         """
         Required inputs
         ----------------
-        * cosmo_dict: dictionary with r (for now)        
+        * r: int: value for r
 
         Returns
         -------
-        * ells: array
         * cls: array: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
 
         """
-        self.config_obj.update_val('InitPower.r', cosmo_dict['r'])
+        self.config_obj.update_val('InitPower.r', r)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
-        return data['l'], flatten_data(data_dict=data, ignore_keys=['l'])
+        return flatten_data(data_dict=data, ignore_keys=['l'])
