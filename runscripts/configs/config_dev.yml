@@ -30,3 +30,8 @@ inference:
         nwalkers: 20
         nburn: 10
         nchain: 10
+    # details re sbi
+    sbi:
+        infer_method: 'SNPE'
+        infer_nsims: 50
+        posterior_nsamples: 1000
