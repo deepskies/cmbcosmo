@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# script to run inference. mcmc only as a start.
+# script to run inference. mcmc and sbi options.
 # ------------------------------------------------------------------------------
 import time, datetime
 import numpy as np
@@ -14,6 +14,9 @@ parser.add_option('--config-path',
 parser.add_option('--mcmc',
                   action='store_true', dest='mcmc', default=False,
                   help='use to run MCMC inference.')
+parser.add_option('--sbi',
+                  action='store_true', dest='sbi', default=False,
+                  help='use to run SBI.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -25,6 +28,7 @@ print('\n## inputs: %s' % options)
 # read in the inputs
 config_path = options.config_path
 run_mcmc = options.mcmc
+run_sbi = options.sbi
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
@@ -46,6 +50,7 @@ theory = theory(randomseed=config_data['datavector']['randomseed'], verbose=Fals
 ells, datavector = theory.get_prediction(cosmo_dict=config_data['datavector']['cosmo'])
 # -----------------------------------------------
 starts = None
+samples = {}
 if run_mcmc:
     import emcee
     from setup_mcmc import setup_mcmc 
@@ -74,9 +79,25 @@ if run_mcmc:
     print('## running the full chain ... ')
     sampler.run_mcmc(pos, nsteps_chain, progress=True)
     # extract samples
-    samples = sampler.get_chain(flat=True)
-else:
-    print('\n## not sure what were doing here since run_mcmc is set to False .. \n')
+    samples['mcmc'] = sampler.get_chain(flat=True)
+
+if run_sbi:
+    from setup_sbi import setup_sbi
+    # pull sbi related config details
+    sbi_dict = config_data['inference']['sbi']
+    # set up sbi
+    sbi_setup = setup_sbi(theory=theory)
+    # construct prior
+    sbi_setup.setup_prior(param_priors=param_priors)
+    # construct posterior
+    sbi_setup.setup_posterior(nsims=sbi_dict['infer_nsims'], method=sbi_dict['infer_method'])
+    # get samples
+    samples['sbi'] = sbi_setup.get_samples(nsamples=sbi_dict['posterior_nsamples'],
+                                           datavector=datavector
+                                           )
+
+if not run_mcmc and not run_sbi:
+    print('\n## not sure what were doing here since run_mcmc and run_sbi are set to False .. \n')
     quit()
 
 # now plot things
@@ -87,13 +108,14 @@ if '~' in outdir:
     outdir = os.path.expanduser(outdir)
 
 from helpers_plots import plot_chainconsumer
-fname = 'plot_chainconsumer.png'
-plot_chainconsumer(samples=samples,
-                   truths=truths,
-                   param_labels=param_labels,
-                   color_posterior=None, color_truth=None,
-                   starts=starts, color_starts='r',
-                   showplot=False,
-                   savefig=True, fname=fname, outdir=outdir
-                   )
+for key in samples:
+    fname = f'plot_chainconsumer_{key}.png'
+    plot_chainconsumer(samples=samples[key],
+                       truths=truths,
+                       param_labels=param_labels,
+                       color_posterior=None, color_truth=None,
+                       starts=starts, color_starts='r',
+                       showplot=False,
+                       savefig=True, fname=fname, outdir=outdir
+                       )
 print(f'\n##time taken: {(time.time() - start_time)/60: .2f} min')
