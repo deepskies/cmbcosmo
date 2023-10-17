@@ -54,7 +54,6 @@ samples = {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
     time0 = time.time()
-    import emcee
     from setup_mcmc import setup_mcmc 
     # pull mcmc related config details
     mcmc_dict = config_data['inference']['mcmc']
@@ -66,22 +65,18 @@ if run_mcmc:
     starts = list(config_data['datavector']['cosmo'].values())
     starts += 0.1 * np.random.randn(nwalkers, npar)
     # set up mcmc details - log prior, likelihood, posterior
-    runmcmc = setup_mcmc(datavector=datavector,
-                         param_priors=param_priors,
-                         theory=theory
-                         )
+    mcmc_setup = setup_mcmc(datavector=datavector,
+                            param_priors=param_priors,
+                            theory=theory
+                            )
     # set up the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, npar, runmcmc.logposterior)
+    mcmc_setup.setup_sampler(nwalkers=nwalkers, npar=npar)
     # burn-in
-    print('## burning in ... ')
-    pos, prob, stat = sampler.run_mcmc(starts, nsteps_burn, progress=True)
-    # now reset the sampler
-    sampler.reset()
-    # run the full chain now
-    print('## running the full chain ... ')
-    sampler.run_mcmc(pos, nsteps_chain, progress=True)
-    # extract samples
-    samples['mcmc'] = sampler.get_chain(flat=True)
+    mcmc_setup.burnin(starts=starts, nsteps=nsteps_burn, progress=True)
+    # post-burnin
+    mcmc_setup.post_burn(nsteps=nsteps_chain, progress=True)
+    # get samples
+    samples['mcmc'] = mcmc_setup.get_samples(flat=True)
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
     print('# ----------')
 

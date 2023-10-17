@@ -19,7 +19,7 @@ class setup_mcmc(object):
         self.theory = theory
 
     # ---------------------------------------------
-    def loglikelihood(self, theory_vec):
+    def get_loglikelihood(self, theory_vec):
         """
         * theory_vec: arr: theory array (stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE)
                            to compare against data
@@ -36,7 +36,7 @@ class setup_mcmc(object):
         return -0.5 * chi2
     
     # ---------------------------------------------
-    def logprior(self, p):
+    def get_logprior(self, p):
         """
         * p: arr: parameter array to consider
         """
@@ -57,17 +57,58 @@ class setup_mcmc(object):
             return -np.inf
     # ---------------------------------------------
     # set up log-posterior
-    def logposterior(self, p):
+    def get_logposterior(self, p):
         """
         * p: arr: parameter array to consider
         """
         # check to confirm that this sample is good with the priors
-        logprior = self.logprior(p)
+        logprior = self.get_logprior(p)
 
         if not np.isfinite(logprior):
             # i.e. value outside the prior => unlikely
             return -np.inf
 
         prediction = self.theory.get_prediction(r=p)
-        return self.loglikelihood(theory_vec=prediction) + logprior
-    # ----------------------------------------------------------------------
+        return self.get_loglikelihood(theory_vec=prediction) + logprior
+    # ---------------------------------------------
+    # set up the sampler
+    def setup_sampler(self, nwalkers, npar):
+        """
+        * nwalkers: int: number of walkers
+        * npar: int: number of parameters
+        """
+        import emcee as emcee
+        self.sampler = emcee.EnsembleSampler(nwalkers, npar, self.get_logposterior)
+    # ---------------------------------------------
+    # run burn in
+    def burnin(self, starts, nsteps, progress=True):
+        """
+        * starts: arr: array of starting positions of the walkers
+        * nsteps: int: number of steps for burn-in
+        * progress: bool: set to False to not show progress bar.
+                          Default: True
+        """
+        print('## burning in ... ')
+        # run burn-in
+        self.latest_walker_coords, _, _ = self.sampler.run_mcmc(starts, nsteps, progress=progress)
+        # now reset the sampler
+        self.sampler.reset()
+    # ---------------------------------------------
+    # run MCMC post burn-in
+    def post_burn(self, nsteps, progress=True):
+        """
+        * nsteps: int: number of steps for post-burn-in
+        * progress: bool: set to False to not show progress bar.
+                          Default: True
+        """
+        print('## running the full chain ... ')
+        self.sampler.run_mcmc(self.latest_walker_coords, nsteps, progress=progress)
+    # ---------------------------------------------
+    # get samples
+    def get_samples(self, flat=True):
+        """
+        * progress: bool: set to False to get the 2D array.
+                          Default: True
+        """
+        return self.sampler.get_chain(flat=flat)
+    # ---------------------------------------------------------------------
