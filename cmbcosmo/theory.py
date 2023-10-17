@@ -25,8 +25,9 @@ class theory(object):
         # load the default config in deepcmbsim and udpate some things
         self.config_obj = simcmb.config_obj()
         print(f'initial config: {self.config_obj.UserParams}\n')
-        self.config_obj.update_val('verbose', int(verbose))
-        self.config_obj.update_val('seed', randomseed)
+        self.verbose = verbose
+        self.config_obj.update_val('verbose', int(self.verbose))
+        self.config_obj.update_val('seed', randomseed, verbose=self.verbose)
 
     # ---------------------------------------------
     def get_prediction(self, r):
@@ -40,6 +41,6 @@ class theory(object):
         * cls: array: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
 
         """
-        self.config_obj.update_val('InitPower.r', r)
+        self.config_obj.update_val('InitPower.r', r, verbose=self.verbose)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
         return flatten_data(data_dict=data, ignore_keys=['l'])
