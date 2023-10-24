@@ -10,7 +10,7 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, randomseed, verbose=False, outdir=None):
+    def __init__(self, randomseed, lmax, verbose=False, outdir=None):
         """
         Required inputs
         ----------------
@@ -26,6 +26,7 @@ class theory(object):
         # load the default config in deepcmbsim and udpate some things
         self.config_obj = simcmb.config_obj()
         print(f'initial config: {self.config_obj.UserParams}\n')
+        self.config_obj.update_val('max_l_use', lmax)
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
         self.config_obj.update_val('seed', randomseed, verbose=self.verbose)

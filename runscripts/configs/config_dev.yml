@@ -12,6 +12,7 @@ paths:
 datavector:
     randomseed: 924
     cosmo: {'r': 0.04}
+    lmax: 3000
 
 # inference details
 inference:

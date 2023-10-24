@@ -63,6 +63,7 @@ print(f'## saving things in {outdir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 theory = theory(randomseed=config_data['datavector']['randomseed'],
+                lmax=config_data['datavector']['lmax'],
                 verbose=False, outdir=datadir)
 datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
                                    plot_things=True, plot_tag='data')
