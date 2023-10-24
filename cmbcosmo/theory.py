@@ -10,7 +10,7 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, randomseed, verbose=False):
+    def __init__(self, randomseed, verbose=False, outdir=None):
         """
         Required inputs
         ----------------
@@ -20,6 +20,7 @@ class theory(object):
         ----------------
         * verbose: bool: set to True to enable print statements
                          from deepcmbsim. Default: False
+        * outdir: str or None
         
         """
         # load the default config in deepcmbsim and udpate some things
@@ -28,9 +29,10 @@ class theory(object):
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
         self.config_obj.update_val('seed', randomseed, verbose=self.verbose)
+        self.outdir = outdir
 
     # ---------------------------------------------
-    def get_prediction(self, r):
+    def get_prediction(self, r, plot_things=False, plot_tag=''):
         """
         Required inputs
         ----------------
@@ -43,4 +45,24 @@ class theory(object):
         """
         self.config_obj.update_val('InitPower.r', r, verbose=self.verbose)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
+        if plot_things:
+            if self.outdir is None:
+                raise ValueError('outdir much be set for plotting things.')
+            import matplotlib.pyplot as plt
+            import cmbcosmo.settings
+            plt.clf()
+            for key in data:
+                if key != 'l':
+                    plt.loglog(data['l'], data[key], '.-', label=key)
+            plt.legend()
+            plt.xlabel(r'$\ell$')
+            plt.ylabel(r'$C_\ell$')
+            if plot_tag != '':
+                plot_tag = '_' + plot_tag
+            fname = f'plot_cls{plot_tag}.png'
+            plt.savefig(f'{self.outdir}/{fname}',
+                        bbox_inches='tight', format='png')
+            print('# saved %s' % fname)
+            plt.close()
+
         return flatten_data(data_dict=data, ignore_keys=['l'])

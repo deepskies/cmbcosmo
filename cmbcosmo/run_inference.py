@@ -54,14 +54,18 @@ for param in params_to_fit:
 # set up truths
 truths = list(config_data['datavector']['cosmo'].values())
 # set up outdir
+datadir = config_data['paths']['outdir'] + 'data'
 outdir = config_data['paths']['outdir'] + config_data['outtag']
-# make sure folder exists
+# make sure folders exist
+os.makedirs(datadir, exist_ok=True)
 os.makedirs(outdir, exist_ok=True)
 print(f'## saving things in {outdir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
-theory = theory(randomseed=config_data['datavector']['randomseed'], verbose=False)
-datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'])
+theory = theory(randomseed=config_data['datavector']['randomseed'],
+                verbose=False, outdir=datadir)
+datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
+                                   plot_things=True, plot_tag='data')
 # -----------------------------------------------
 starts = None
 samples = {}
