@@ -1,5 +1,6 @@
 import numpy as np
-
+import emcee as emcee
+import shutil
 # ----------------------------------------------------------------------
 class setup_mcmc(object):
     """"
@@ -7,17 +8,18 @@ class setup_mcmc(object):
     Covariances missing right now.
     """
     # ---------------------------------------------
-    def __init__(self, datavector, param_priors, theory):
+    def __init__(self, datavector, param_priors, theory, outdir):
         """
         * datavector: arr: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
         * param_priors: arr: arr of priors on the params to constrain
         * theory: theory object, initialized
+        * outdir: str: path to the output dir
         """
         self.datavector = datavector
         self.param_priors = param_priors
         self.npar = len(param_priors)
         self.theory = theory
-
+        self.outdir = outdir
     # ---------------------------------------------
     def get_loglikelihood(self, theory_vec):
         """
@@ -71,38 +73,66 @@ class setup_mcmc(object):
         prediction = self.theory.get_prediction(r=p)
         return self.get_loglikelihood(theory_vec=prediction) + logprior
     # ---------------------------------------------
-    # set up the sampler
-    def setup_sampler(self, nwalkers, npar):
+    # set up the sampler, burn in, post-burn
+    def run_mcmc(self, nwalkers,
+                 starts, nsteps_burn, nsteps_post,
+                 restart=False, restart_from_burn=False,
+                 progress=True):
         """
         * nwalkers: int: number of walkers
         * npar: int: number of parameters
-        """
-        import emcee as emcee
-        self.sampler = emcee.EnsembleSampler(nwalkers, npar, self.get_logposterior)
-    # ---------------------------------------------
-    # run burn in
-    def burnin(self, starts, nsteps, progress=True):
-        """
         * starts: arr: array of starting positions of the walkers
-        * nsteps: int: number of steps for burn-in
+        * nsteps_burnin: int: number of steps for burn-in
+        * nsteps_post: int: number of steps for post-burn-in
+        * restart: bool: set to True to restart using the backend
+                         Default: False
+        * restart_from_burn: bool: set to True restart from burn in
+                                   Default: False
         * progress: bool: set to False to not show progress bar.
                           Default: True
         """
-        print('## burning in ... ')
-        # run burn-in
-        self.latest_walker_coords, _, _ = self.sampler.run_mcmc(starts, nsteps, progress=progress)
-        # now reset the sampler
-        self.sampler.reset()
-    # ---------------------------------------------
-    # run MCMC post burn-in
-    def post_burn(self, nsteps, progress=True):
-        """
-        * nsteps: int: number of steps for post-burn-in
-        * progress: bool: set to False to not show progress bar.
-                          Default: True
-        """
-        print('## running the full chain ... ')
-        self.sampler.run_mcmc(self.latest_walker_coords, nsteps, progress=progress)
+        # setup sampler backend
+        backend_burnin_fname = f'{self.outdir}/backend-burnin.h5'
+        backend_fname = f'{self.outdir}/backend.h5'
+        backend = emcee.backends.HDFBackend(backend_fname)
+        # set up the sampler
+        sampler = emcee.EnsembleSampler(nwalkers, self.npar,
+                                        self.get_logposterior,
+                                        backend=backend)
+        # figure out where to start from
+        if restart:
+            if restart_from_burn:
+                print('## resuming burn in ... ')
+                # run the chain; n-steps modified based on how many were completed before
+                pos, _, _ = sampler.run_mcmc(None,
+                                             nsteps_burn - backend.iteration,   progress=progress)
+                # save the backend for the burn in
+                shutil.copy(backend_fname, backend_burnin_fname)
+                # now reset the sampler
+                sampler.reset()
+                # run post-burn
+                print('## running the full chain ... ')
+                sampler.run_mcmc(None, nsteps_post, progress=progress)
+            else:
+                print('## resuming the chain ... ')
+                # run the chain; n-steps modified based on how many were completed before
+                sampler.run_mcmc(None, nsteps_post - backend.iteration, progress=progress)
+        else:
+            # ------
+            print('## burning in ... ')
+            # run burn-in
+            pos, _, _ = sampler.run_mcmc(starts, nsteps_burn, progress=progress)
+            # ------
+            # save the backend for the burn in
+            shutil.copy(backend_fname, backend_burnin_fname)
+            # now reset the sampler
+            sampler.reset()
+            # run post-burn
+            print('## running the full chain ... ')
+            sampler.run_mcmc(pos, nsteps_post, progress=progress)
+
+        # for later
+        self.sampler = sampler
     # ---------------------------------------------
     # get samples
     def get_samples(self, flat=True):

@@ -3,6 +3,7 @@
 # ------------------------------------------------------------------------------
 import time, datetime
 import numpy as np
+import os
 from cmbcosmo.setup_config import setup_config
 from cmbcosmo.theory import theory
 # ------------------------------------------------------------------------------
@@ -17,6 +18,12 @@ parser.add_option('--mcmc',
 parser.add_option('--sbi',
                   action='store_true', dest='sbi', default=False,
                   help='use to run SBI.')
+parser.add_option('--restart-mcmc',
+                  action='store_true', dest='restart_mcmc', default=False,
+                  help='use to restart mcmc.')
+parser.add_option('--restart-mcmc-burn',
+                  action='store_true', dest='restart_mcmc_burn', default=False,
+                  help='use to restart mcmc burn too.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -29,6 +36,8 @@ print('\n## inputs: %s' % options)
 config_path = options.config_path
 run_mcmc = options.mcmc
 run_sbi = options.sbi
+restart_mcmc = options.restart_mcmc
+restart_mcmc_burn = options.restart_mcmc_burn
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
@@ -44,6 +53,11 @@ for param in params_to_fit:
         raise ValueError('dont have functionality to fit {param}')
 # set up truths
 truths = list(config_data['datavector']['cosmo'].values())
+# set up outdir
+outdir = config_data['paths']['outdir'] + config_data['outtag']
+# make sure folder exists
+os.makedirs(outdir, exist_ok=True)
+print(f'## saving things in {outdir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 theory = theory(randomseed=config_data['datavector']['randomseed'], verbose=False)
@@ -67,14 +81,15 @@ if run_mcmc:
     # set up mcmc details - log prior, likelihood, posterior
     mcmc_setup = setup_mcmc(datavector=datavector,
                             param_priors=param_priors,
-                            theory=theory
+                            theory=theory,
+                            outdir=outdir
                             )
-    # set up the sampler
-    mcmc_setup.setup_sampler(nwalkers=nwalkers, npar=npar)
-    # burn-in
-    mcmc_setup.burnin(starts=starts, nsteps=nsteps_burn, progress=True)
-    # post-burnin
-    mcmc_setup.post_burn(nsteps=nsteps_chain, progress=True)
+    # set up the sampler, bunrin, post
+    mcmc_setup.run_mcmc(nwalkers=nwalkers,
+                        starts=starts, nsteps_burn=nsteps_burn, nsteps_post=nsteps_chain,
+                        restart=restart_mcmc, restart_from_burn=restart_mcmc_burn,
+                        progress=True
+                        )
     # get samples
     samples['mcmc'] = mcmc_setup.get_samples(flat=True)
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
@@ -104,7 +119,6 @@ if not run_mcmc and not run_sbi:
     quit()
 
 # now plot things
-outdir = config_data['paths']['outdir']
 from helpers_plots import plot_chainconsumer
 for key in samples:
     fname = f'plot_chainconsumer_{key}.png'
