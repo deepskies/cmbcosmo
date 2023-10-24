@@ -33,6 +33,12 @@ def setup_config(config_path):
     # add the paths as the paths
     for key in config_data['paths'][f'{machine}_paths']:
         config_data['paths'][key] = os.path.expanduser(config_data['paths'][f'{machine}_paths'][key])
+
+    tag = ''
+    for i, key in enumerate(config_data['inference']['params_to_fit']):
+        prior = config_data['inference']['param_priors'][i]
+        tag += f'{prior[0]:.2f}<={key}<{prior[1]:.2f}_'
+    config_data['outtag'] = tag[0:-1]
     # print stuff out
     final_keys = get_nested_dict_keys(config_data)
     added_keys = list(set(final_keys) - set(initial_keys))
@@ -45,6 +51,9 @@ def setup_config(config_path):
 def get_nested_dict_keys(nested_dict):
     keys = []
     for key_l1 in nested_dict:
-        for key_l2 in nested_dict[key_l1]:
-            keys.append(f'{key_l1}.{key_l2}')
+        if isinstance(nested_dict[key_l1], dict):
+            for key_l2 in nested_dict[key_l1]:
+                keys.append(f'{key_l1}.{key_l2}')
+        else:
+            keys.append(key_l1)
     return keys
