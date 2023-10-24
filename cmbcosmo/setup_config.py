@@ -1,5 +1,5 @@
 import yaml
-
+import os
 __all__ = ['setup_config']
 
 def setup_config(config_path):
@@ -32,8 +32,7 @@ def setup_config(config_path):
         raise ValueError(f'must have a key entry for {machine}_paths under paths')
     # add the paths as the paths
     for key in config_data['paths'][f'{machine}_paths']:
-        config_data['paths'][key] = config_data['paths'][f'{machine}_paths'][key]
-
+        config_data['paths'][key] = os.path.expanduser(config_data['paths'][f'{machine}_paths'][key])
     # print stuff out
     final_keys = get_nested_dict_keys(config_data)
     added_keys = list(set(final_keys) - set(initial_keys))

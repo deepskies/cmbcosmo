@@ -105,11 +105,6 @@ if not run_mcmc and not run_sbi:
 
 # now plot things
 outdir = config_data['paths']['outdir']
-# make sure the path is accessible
-import os
-if '~' in outdir:
-    outdir = os.path.expanduser(outdir)
-
 from helpers_plots import plot_chainconsumer
 for key in samples:
     fname = f'plot_chainconsumer_{key}.png'
