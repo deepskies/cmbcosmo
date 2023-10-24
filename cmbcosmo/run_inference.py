@@ -24,6 +24,9 @@ parser.add_option('--restart-mcmc',
 parser.add_option('--restart-mcmc-burn',
                   action='store_true', dest='restart_mcmc_burn', default=False,
                   help='use to restart mcmc burn too.')
+parser.add_option('--debug',
+                  action='store_true', dest='debug', default=False,
+                  help='run everything in debug mode.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -38,9 +41,16 @@ run_mcmc = options.mcmc
 run_sbi = options.sbi
 restart_mcmc = options.restart_mcmc
 restart_mcmc_burn = options.restart_mcmc_burn
+debug = options.debug
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
+if debug:
+    config_data['inference']['mcmc']['nwalkers'] = 2
+    config_data['inference']['mcmc']['nburn'] = 5
+    config_data['inference']['mcmc']['nchain'] = 5
+    config_data['inference']['sbi']['infer_nsims'] = 10
+    config_data['inference']['sbi']['posterior_nsamples'] = 10
 # now pull some things from the config
 params_to_fit = config_data['inference']['params_to_fit']
 param_labels = config_data['inference']['param_labels']
@@ -55,7 +65,10 @@ for param in params_to_fit:
 truths = list(config_data['datavector']['cosmo'].values())
 # set up outdir
 datadir = config_data['paths']['outdir'] + 'data'
-outdir = config_data['paths']['outdir'] + 'lk_' + config_data['outtag']
+outdir = 'lk_' + config_data['outtag']
+if debug:
+    outdir = f'debug_{outdir}'
+outdir = config_data['paths']['outdir'] + outdir
 # make sure folders exist
 os.makedirs(datadir, exist_ok=True)
 os.makedirs(outdir, exist_ok=True)
