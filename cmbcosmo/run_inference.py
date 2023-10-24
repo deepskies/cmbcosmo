@@ -55,7 +55,7 @@ for param in params_to_fit:
 truths = list(config_data['datavector']['cosmo'].values())
 # set up outdir
 datadir = config_data['paths']['outdir'] + 'data'
-outdir = config_data['paths']['outdir'] + config_data['outtag']
+outdir = config_data['paths']['outdir'] + 'lk_' + config_data['outtag']
 # make sure folders exist
 os.makedirs(datadir, exist_ok=True)
 os.makedirs(outdir, exist_ok=True)
@@ -76,7 +76,7 @@ if run_mcmc:
     from setup_mcmc import setup_mcmc 
     # pull mcmc related config details
     mcmc_dict = config_data['inference']['mcmc']
-    nwalkers = config_data['inference']['mcmc']['nwalkers']
+    nwalkers = mcmc_dict['nwalkers']
     nsteps_burn, nsteps_chain = mcmc_dict['nburn'], mcmc_dict['nchain']
     # starting points for the chains
     # initialize - perturbation from the truth
@@ -98,9 +98,9 @@ if run_mcmc:
     # get samples
     samples['mcmc'] = mcmc_setup.get_samples(flat=True)
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
-    print('# ----------')
     # save chainvals
     mcmc_setup.plot_chainvals(truths=truths, param_labels=param_labels)
+    print('# ----------')
 
 if run_sbi:
     print(f'\n## running sbi .. \n')
@@ -128,7 +128,7 @@ if not run_mcmc and not run_sbi:
 # now plot things
 from helpers_plots import plot_chainconsumer
 for key in samples:
-    fname = f'plot_chainconsumer_{key}.png'
+    fname = f'plot_{key}_chainconsumer.png'
     plot_chainconsumer(samples=samples[key],
                        truths=truths,
                        param_labels=param_labels,
