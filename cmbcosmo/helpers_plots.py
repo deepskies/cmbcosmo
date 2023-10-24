@@ -1,7 +1,7 @@
 from cmbcosmo.settings import *
 from chainconsumer import ChainConsumer
 
-__all__ = ['plot_chainconsumer']
+__all__ = ['plot_chainconsumer', 'plot_chainvals']
 # ------------------------------------------------------------------------------
 def plot_chainconsumer(samples, truths, param_labels,
                        color_posterior, color_truth,
@@ -78,3 +78,56 @@ def plot_chainconsumer(samples, truths, param_labels,
     # close fig
     plt.close('all')
     # ---------------------------------------------
+# ------------------------------------------------------------------------------
+def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
+                   starts, truths, param_labels, filetag=None):
+    """
+    Function to plot param values along the chains.
+
+    * chain_unflattened: arr: unflattended array
+    * outdir: str: output directory
+    * npar: int: number of params
+    * nsteps: int: int: number of steps
+    * starts: arr: starting positions
+    * truths: arr: truth values
+    * param_labels: arr: parameter labels
+    * filetag: str: tag to add to the output file
+
+    """
+    plt.clf()
+    fig, axes = plt.subplots(npar, 1)
+    plt.subplots_adjust(wspace=0.2, hspace=0.3)
+
+    for i in range(npar):
+        if npar == 1: ax = axes
+        else: ax = axes[i]
+        # plot the chain
+        ax.plot(chain_unflattened[:, :, i])
+        xmax = nsteps
+        # add a line for the truth
+        ax.plot([0-100, xmax+100], [ truths[i], truths[i] ], 'k-.', lw=2, label='truth' )
+        # add a line for the starts
+        ax.plot([0], [ starts[:, i] ], 'x', color='#d62728' )
+        # set up the ylabel
+        ax.set_ylabel(r'%s' % param_labels[i])
+
+    if npar == 1:
+        axes.legend(bbox_to_anchor=(1, 1))
+        axes.set_xlabel('# of steps')
+    else:
+        axes[0].legend(bbox_to_anchor=(1, 1))
+        axes[-1].set_xlabel('# of steps')
+
+    fig.set_size_inches(10, 6*npar/3)
+
+    plt.suptitle(filetag)
+
+    if filetag is not None:
+        filetag = '_' + filetag
+    else:
+        filetag = ''
+    fname = f'plot_mcmc_chain-param-values{filetag}.png'
+    plt.savefig(f'{outdir}/{fname}',
+                bbox_inches='tight', format='png')
+    print('# saved %s' % fname)
+    plt.close()

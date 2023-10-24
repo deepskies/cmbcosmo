@@ -98,6 +98,8 @@ if run_mcmc:
     samples['mcmc'] = mcmc_setup.get_samples(flat=True)
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
     print('# ----------')
+    # save chainvals
+    mcmc_setup.plot_chainvals(truths=truths, param_labels=param_labels)
 
 if run_sbi:
     print(f'\n## running sbi .. \n')

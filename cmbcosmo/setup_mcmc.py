@@ -133,6 +133,15 @@ class setup_mcmc(object):
 
         # for later
         self.sampler = sampler
+        self.nsteps_burn = nsteps_burn
+        self.nsteps_post = nsteps_post
+        self.starts = starts
+         # save the burnin sampler
+        backend_burnin = emcee.backends.HDFBackend(backend_burnin_fname)
+        self.sampler_burnin = emcee.EnsembleSampler(nwalkers, self.npar,
+                                                    self.get_logposterior,
+                                                    backend=backend_burnin)
+
     # ---------------------------------------------
     # get samples
     def get_samples(self, flat=True):
@@ -142,3 +151,13 @@ class setup_mcmc(object):
         """
         return self.sampler.get_chain(flat=flat)
     # ---------------------------------------------------------------------
+    def plot_chainvals(self, truths, param_labels):
+        from helpers_plots import plot_chainvals
+        # first the chain
+        plot_chainvals(chain_unflattened=self.sampler.get_chain(),
+                       outdir=self.outdir, npar=self.npar, nsteps=self.nsteps_post,
+                       starts=self.starts, truths=truths, param_labels=param_labels, filetag='post-burnin')
+        # now the burnin
+        plot_chainvals(chain_unflattened=self.sampler_burnin.get_chain(),
+                       outdir=self.outdir, npar=self.npar, nsteps=self.nsteps_post,
+                       starts=self.starts, truths=truths, param_labels=param_labels, filetag='burnin')
