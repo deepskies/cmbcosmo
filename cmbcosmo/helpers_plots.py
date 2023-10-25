@@ -130,6 +130,7 @@ def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
     fig, axes = plt.subplots(npar, 1)
     plt.subplots_adjust(wspace=0.2, hspace=0.3)
 
+    delta = 0.01 * nsteps
     for i in range(npar):
         if npar == 1: ax = axes
         else: ax = axes[i]
@@ -137,7 +138,7 @@ def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
         ax.plot(chain_unflattened[:, :, i])
         xmax = nsteps
         # add a line for the truth
-        ax.plot([0-100, xmax+100], [ truths[i], truths[i] ], 'k-.', lw=2, label='truth' )
+        ax.plot([0-delta, xmax+delta], [ truths[i], truths[i] ], 'k-.', lw=2, label='truth' )
         # add a line for the starts
         ax.plot([0], [ starts[:, i] ], 'x', color='#d62728' )
         # set up the ylabel
