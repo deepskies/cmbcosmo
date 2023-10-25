@@ -6,8 +6,10 @@ __all__ = ['plot_chainconsumer', 'plot_chainvals']
 def plot_chainconsumer(samples, truths, param_labels,
                        color_posterior, color_truth,
                        starts=None, color_starts='r',
-                       showplot=False,
-                       savefig=False, fname=None, outdir=None):
+                       showplot=False, savefig=False,
+                       fname=None, outdir=None,
+                       get_bestfits=False, check_convergence=False
+                       ):
     """
     
     Function to plot posteriors.
@@ -34,6 +36,10 @@ def plot_chainconsumer(samples, truths, param_labels,
                   Default: None
     * outdir: str: output directory path.
                    Default: None
+    * get_bestfits: bool: set to True to return bestfits.
+                          Defaut: False
+    * check_convergence: boool: set to True to check convergence using
+                                chainconsumer. Default: False
 
     """
     # ---------------------------------------------
@@ -77,6 +83,32 @@ def plot_chainconsumer(samples, truths, param_labels,
         plt.show()
     # close fig
     plt.close('all')
+
+    if check_convergence:
+        # the following seems to throw an error in debug mode so lets not run then
+        # print out convergence diagnostics
+        gelman_rubin_converged = c.diagnostic.gelman_rubin()
+        geweke_converged = c.diagnostic.geweke()
+
+        print(f'\ngelman_rubin_converged: {gelman_rubin_converged}\n')
+        print(f'geweke_converged: {geweke_converged}\n')
+
+    if get_bestfits:
+        import numpy as np
+        bestfit, bestfit_low, bestfit_upp = np.zeros(npar), np.zeros(npar), np.zeros(npar)
+
+        # get mean bestfit from ChainConsumer
+        out = c.analysis.get_summary(chains=c.get_mcmc_chains())
+        for i, key in enumerate(out):
+            bestfit[i] = out[key][1]
+            if out[key][0] is not None:
+                bestfit_low[i] = out[key][1] - out[key][0]
+                bestfit_upp[i] = out[key][2] - out[key][1]
+            else:
+                bestfit_low[i] = np.nan
+                bestfit_upp[i] = np.nan
+
+        return bestfit, bestfit_low, bestfit_upp
     # ---------------------------------------------
 # ------------------------------------------------------------------------------
 def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
