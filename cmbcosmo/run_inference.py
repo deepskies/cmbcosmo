@@ -138,16 +138,45 @@ if not run_mcmc and not run_sbi:
     print('\n## not sure what were doing here since run_mcmc and run_sbi are set to False .. \n')
     quit()
 
+print(f'\n## processing results (if applicable) .. \n')
 # now plot things
 from helpers_plots import plot_chainconsumer
 for key in samples:
     fname = f'plot_{key}_chainconsumer.png'
-    plot_chainconsumer(samples=samples[key],
-                       truths=truths,
-                       param_labels=param_labels,
-                       color_posterior=None, color_truth=None,
-                       starts=starts, color_starts='r',
-                       showplot=False,
-                       savefig=True, fname=fname, outdir=outdir
-                       )
+    out = plot_chainconsumer(samples=samples[key],
+                             truths=truths,
+                             param_labels=param_labels,
+                             color_posterior=None, color_truth=None,
+                             starts=starts, color_starts='r',
+                             showplot=False,
+                             savefig=True, fname=fname, outdir=outdir,
+                             get_bestfits=True, check_convergence=not debug
+                            )
+    bestfit, bestfit_low, bestfit_upp = out
+    print(f'\n## {key}')
+    print('## bestfits vs truth')
+    for i in range(npar):
+        print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
+
+    # bestfit cls
+    datavector = theory.get_prediction(r=truths[0], plot_things=False,
+                                       return_unflat=True)
+    bestfitvector = theory.get_prediction(r=bestfit[0], plot_things=False,
+                                          return_unflat=True)
+    import matplotlib.pyplot as plt
+    import cmbcosmo.settings
+    plt.clf()
+    for dkey in datavector:
+        if dkey != 'l':
+            plt.loglog(datavector['l'], datavector[dkey], '.-', label=dkey)
+            plt.loglog(bestfitvector['l'], bestfitvector[dkey], 'k-')
+    plt.legend()
+    plt.xlabel(r'$\ell$')
+    plt.ylabel(r'$C_\ell$')
+    fname = f'plot_{key}_cls_comparison.png'
+    plt.title(key)
+    plt.savefig(f'{outdir}/{fname}',
+                bbox_inches='tight', format='png')
+    print('\n## saved %s' % fname)
+    plt.close()
 print(f'\n## overall time taken: {(time.time() - start_time)/60: .2f} min')
