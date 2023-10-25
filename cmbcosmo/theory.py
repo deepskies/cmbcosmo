@@ -33,7 +33,8 @@ class theory(object):
         self.outdir = outdir
 
     # ---------------------------------------------
-    def get_prediction(self, r, plot_things=False, plot_tag=''):
+    def get_prediction(self, r, plot_things=False, plot_tag='',
+                       return_unflat=False):
         """
         Required inputs
         ----------------
@@ -66,4 +67,7 @@ class theory(object):
             print('# saved %s' % fname)
             plt.close()
 
-        return flatten_data(data_dict=data, ignore_keys=['l'])
+        if return_unflat:
+            return data
+        else:
+            return flatten_data(data_dict=data, ignore_keys=['l'])
