@@ -5,7 +5,7 @@ __all__ = ['plot_chainconsumer', 'plot_chainvals']
 # ------------------------------------------------------------------------------
 def plot_chainconsumer(samples, truths, param_labels,
                        color_posterior, color_truth,
-                       starts=None, color_starts='r',
+                       starts=None, nwalkers=None, color_starts='r',
                        showplot=False, savefig=False,
                        fname=None, outdir=None,
                        get_bestfits=False, check_convergence=False
@@ -25,6 +25,8 @@ def plot_chainconsumer(samples, truths, param_labels,
     Optional inputs
     ---------------
     * starts: arr: starting points for the walkers (applicable for MCMC).
+    * nwalkers: int: number of walkers (needed for checking chain convergence).
+                     Default: None
     * color_starts: str: color for the starts.
                          Default: 'r' (for red)
     * showplot: bool: set to True to show the plot.
@@ -54,7 +56,8 @@ def plot_chainconsumer(samples, truths, param_labels,
     # set up the chainconsumer object
     c = ChainConsumer()
     # add chain
-    c.add_chain(samples, parameters=param_labels, color=color_posterior)
+    c.add_chain(samples, parameters=param_labels,
+                color=color_posterior, walkers=nwalkers)
     c.configure(statistics='mean', summary=False,
                 label_font_size=20, tick_font_size=16,
                 usetex=False, serif=False,
@@ -84,7 +87,7 @@ def plot_chainconsumer(samples, truths, param_labels,
     # close fig
     plt.close('all')
 
-    if check_convergence:
+    if check_convergence and nwalkers is not None:
         # the following seems to throw an error in debug mode so lets not run then
         # print out convergence diagnostics
         gelman_rubin_converged = c.diagnostic.gelman_rubin()

@@ -81,7 +81,7 @@ theory = theory(randomseed=config_data['datavector']['randomseed'],
 datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
                                    plot_things=True, plot_tag='data')
 # -----------------------------------------------
-starts = None
+starts, nwalkers = None, None
 samples = {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
@@ -147,9 +147,9 @@ for key in samples:
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=None,
-                             starts=starts, color_starts='r',
-                             showplot=False,
-                             savefig=True, fname=fname, outdir=outdir,
+                             starts=starts, nwalkers=nwalkers,
+                             color_starts='r',
+                             showplot=False, savefig=True, fname=fname, outdir=outdir,
                              get_bestfits=True, check_convergence=not debug
                             )
     bestfit, bestfit_low, bestfit_upp = out
