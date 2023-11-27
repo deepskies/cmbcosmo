@@ -63,16 +63,11 @@ for param in params_to_fit:
         raise ValueError('dont have functionality to fit {param}')
 # set up truths
 truths = list(config_data['datavector']['cosmo'].values())
-# set up outdir
+# set up datadir
 datadir = config_data['paths']['outdir'] + 'data'
-outdir = 'lk_' + config_data['outtag']
-if debug:
-    outdir = f'debug_{outdir}'
-outdir = config_data['paths']['outdir'] + outdir
-# make sure folders exist
+# make sure folder exists
 os.makedirs(datadir, exist_ok=True)
-os.makedirs(outdir, exist_ok=True)
-print(f'## saving things in {outdir}')
+print(f'## saving data in {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 theory = theory(randomseed=config_data['datavector']['randomseed'],
@@ -82,7 +77,7 @@ datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
                                    plot_things=True, plot_tag='data')
 # -----------------------------------------------
 starts, nwalkers = None, None
-samples = {}
+samples, outdirs = {}, {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
     time0 = time.time()
@@ -91,6 +86,16 @@ if run_mcmc:
     mcmc_dict = config_data['inference']['mcmc']
     nwalkers = mcmc_dict['nwalkers']
     nsteps_burn, nsteps_chain = mcmc_dict['nburn'], mcmc_dict['nchain']
+    # set up the outdir
+    outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps_burn}burn_{nsteps_chain}post_' \
+                + config_data['outtag']
+    if debug:
+        outdir = f'debug_{outdir}'
+    outdir = config_data['paths']['outdir'] + outdir
+    # make sure folder exists
+    os.makedirs(outdir, exist_ok=True)
+    print(f'## saving mcmc stuff in {outdir}')
+
     # starting points for the chains
     # initialize - perturbation from the truth
     np.random.seed(mcmc_dict['randomseed_starts'])
@@ -114,6 +119,7 @@ if run_mcmc:
     # save chainvals
     mcmc_setup.plot_chainvals(truths=truths, param_labels=param_labels)
     print('# ----------')
+    outdirs['mcmc'] = outdir
 
 if run_sbi:
     print(f'\n## running sbi .. \n')
@@ -121,16 +127,28 @@ if run_sbi:
     from setup_sbi import setup_sbi
     # pull sbi related config details
     sbi_dict = config_data['inference']['sbi']
+    nsims = sbi_dict['infer_nsims']
+    nsamples = sbi_dict['posterior_nsamples']
     # set up sbi
     sbi_setup = setup_sbi(theory=theory)
     # construct prior
     sbi_setup.setup_prior(param_priors=param_priors)
     # construct posterior
-    sbi_setup.setup_posterior(nsims=sbi_dict['infer_nsims'], method=sbi_dict['infer_method'])
+    sbi_setup.setup_posterior(nsims=nsims, method=sbi_dict['infer_method'])
     # get samples
-    samples['sbi'] = sbi_setup.get_samples(nsamples=sbi_dict['posterior_nsamples'],
+    samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
                                            datavector=datavector
                                            )
+    # set up the outdir
+    outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag']
+    if debug:
+        outdir = f'debug_{outdir}'
+    outdir = config_data['paths']['outdir'] + outdir
+    # make sure folder exists
+    os.makedirs(outdir, exist_ok=True)
+    print(f'## saving sbi stuff in {outdir}')
+
+    outdirs['sbi'] = outdir
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
     print('# ----------')
 
@@ -142,6 +160,7 @@ print(f'\n## processing results (if applicable) .. \n')
 # now plot things
 from helpers_plots import plot_chainconsumer
 for key in samples:
+    outdir = outdirs[key]
     fname = f'plot_{key}_chainconsumer.png'
     out = plot_chainconsumer(samples=samples[key],
                              truths=truths,
