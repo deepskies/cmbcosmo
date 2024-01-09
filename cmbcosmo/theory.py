@@ -10,7 +10,10 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, lmax, verbose=False, outdir=None):
+    def __init__(self, lmax,
+                 verbose=False, outdir=None,
+                 detector_noise=True
+                 ):
         """
         Required inputs
         ----------------
@@ -28,6 +31,9 @@ class theory(object):
         self.config_obj.update_val('max_l_use', lmax)
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
+        # now add detector noise
+        if detector_noise:
+            self.config_obj.update_val('noise_type', 'detector-white')
         self.outdir = outdir
 
     # ---------------------------------------------
