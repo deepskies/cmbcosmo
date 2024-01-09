@@ -10,9 +10,9 @@ paths:
 # details for datavector generation
 # also establishes the "truth"
 datavector:
-    randomseed: 924
     cosmo: {'r': 0.04}
     lmax: 3000
+    detector_white_noise: True
 
 # inference details
 inference:
@@ -33,6 +33,5 @@ inference:
         nchain: 10
     # details re sbi
     sbi:
-        infer_method: 'SNPE'
         infer_nsims: 50
         posterior_nsamples: 1000
