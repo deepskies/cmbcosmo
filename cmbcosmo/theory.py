@@ -43,7 +43,7 @@ class theory(object):
 
     # ---------------------------------------------
     def get_prediction(self, r, plot_things=False, plot_tag='',
-                       return_unflat=False):
+                       return_unflat=False, return_ell_keys_too=False):
         """
         Required inputs
         ----------------
@@ -83,4 +83,8 @@ class theory(object):
         if return_unflat:
             return data
         else:
-            return flatten_data(data_dict=data, ignore_keys=['l'])
+            if return_ell_keys_too:
+                # return: ells, flattened data without ells, keys flattened
+                return  data['l'], flatten_data(data_dict=data, ignore_keys=['l']), [f for f in data.keys() if f != 'l']
+            else:
+                return flatten_data(data_dict=data, ignore_keys=['l'])
