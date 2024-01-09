@@ -10,11 +10,10 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, randomseed, lmax, verbose=False, outdir=None):
+    def __init__(self, lmax, verbose=False, outdir=None):
         """
         Required inputs
         ----------------
-        * randomseed: int: random seed for CAMB
 
         Optional inputs
         ----------------
@@ -27,7 +26,6 @@ class theory(object):
         self.config_obj = simcmb.config_obj()
         print(f'initial config: {self.config_obj.UserParams}\n')
         self.config_obj.update_val('max_l_use', lmax)
-        self.config_obj.update_val('seed', randomseed)
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
         self.outdir = outdir
