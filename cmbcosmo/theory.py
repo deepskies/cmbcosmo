@@ -10,6 +10,7 @@ class theory(object):
     """
     # ---------------------------------------------
     def __init__(self, lmax,
+                 cls_to_consider=['clTT', 'clEE', 'clBB', 'clEB'],
                  verbose=False, outdir=None,
                  detector_noise=True
                  ):
@@ -20,6 +21,8 @@ class theory(object):
 
         Optional inputs
         ----------------
+        * cls_to_consider: list: list of cls to consider.
+                                 Default: ['clTT', 'clEE', 'clBB', 'clEB']
         * verbose: bool: set to True to enable print statements
                          from deepcmbsim. Default: False
         * outdir: str or None
@@ -29,7 +32,7 @@ class theory(object):
         
         """
         # set up the keys we want
-        self.keys_of_interest = ['clTT', 'clEE', 'clBB', 'clEB']
+        self.keys_of_interest = cls_to_consider
         # load the default config in deepcmbsim and udpate some things
         self.config_obj = simcmb.config_obj()
         print(f'simcmb initial config: {self.config_obj.UserParams}\n')
@@ -40,7 +43,7 @@ class theory(object):
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
         # specify which cls to get
-        self.config_obj.update_val('cls_wanted', self.keys_of_interest)
+        self.config_obj.update_val('cls_to_output', self.keys_of_interest)
         # now add detector noise
         if detector_noise:
             self.config_obj.update_val('noise_type', 'detector-white')
