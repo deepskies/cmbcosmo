@@ -99,6 +99,7 @@ if run_mcmc:
 
     # setup the covariance
     cov = theory.get_cov(r=config_data['datavector']['cosmo']['r'],
+                         fsky=config_data['datavector']['fsky'],
                          plot_things=True, plot_tag='')
 
     # starting points for the chains

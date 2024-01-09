@@ -13,6 +13,7 @@ datavector:
     cosmo: {'r': 0.04}
     lmax: 300
     detector_white_noise: True
+    fsky: 1.0
 
 # inference details
 inference:

@@ -112,7 +112,7 @@ class theory(object):
                 return flatten_data(data_dict=data, ignore_keys=['l'])
 
     # ---------------------------------------------
-    def get_cov(self, r, plot_things=False, plot_tag=''):
+    def get_cov(self, r, fsky=1.0, plot_things=False, plot_tag=''):
         """
 
         Required inputs
@@ -121,6 +121,8 @@ class theory(object):
 
         Optional inputs
         ---------------
+        * fsky: float: fraction of sky to consider.
+                       Default: 1.0
         * plot_things: bool: set to True to plot the spectra.
                              Default: False
         * plot_tag: str: tag to add to the saved plot fname.
@@ -147,7 +149,7 @@ class theory(object):
             # first need the ell-array for all the spectra
             larr = np.hstack([ells] * len(keys))
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
-            cov = np.diag( data**2 * (2 / (2 * larr + 1)))
+            cov = np.diag( data**2 * (2 / (fsky * (2 * larr + 1))) )
             # save data
             np.savez_compressed(fname, cov=cov, keys=keys, ells=ells)
             print(f'## saved cov in {fname}')
