@@ -140,7 +140,7 @@ if run_sbi:
     # construct prior
     sbi_setup.setup_prior(param_priors=param_priors)
     # construct posterior
-    sbi_setup.setup_posterior(nsims=nsims, method=sbi_dict['infer_method'])
+    sbi_setup.setup_posterior(nsims=nsims)
     # get samples
     samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
                                            datavector=datavector

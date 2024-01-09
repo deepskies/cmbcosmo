@@ -24,7 +24,7 @@ class setup_sbi(object):
         high = [param_priors[i][1] for i in range(self.npar)]
         self.prior = utils.BoxUniform(low=low, high=high)
     # ---------------------------------------------
-    def setup_posterior(self, nsims, method='SNPE'):
+    def setup_posterior(self, nsims):
         """
         * nsims: int: nsims to run
         * method: str: method to use for infer. Default: 'SNPE'
@@ -33,7 +33,7 @@ class setup_sbi(object):
         from sbi.inference.base import infer
         self.posterior = infer(simulator=self.theory.get_prediction,
                                prior=self.prior,
-                               method=method,
+                               method='SNPE',
                                num_simulations=nsims, 
                                )
     # ---------------------------------------------
