@@ -97,6 +97,10 @@ if run_mcmc:
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving mcmc stuff in {outdir}')
 
+    # setup the covariance
+    cov = theory.get_cov(r=config_data['datavector']['cosmo']['r'],
+                         plot_things=True, plot_tag='')
+
     # starting points for the chains
     # initialize - perturbation from the truth
     np.random.seed(mcmc_dict['randomseed_starts'])
@@ -104,6 +108,7 @@ if run_mcmc:
     starts += 0.1 * np.random.randn(nwalkers, npar)
     # set up mcmc details - log prior, likelihood, posterior
     mcmc_setup = setup_mcmc(datavector=datavector,
+                            cov=cov,
                             param_priors=param_priors,
                             theory=theory,
                             outdir=outdir
