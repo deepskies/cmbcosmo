@@ -88,3 +88,81 @@ class theory(object):
                 return  data['l'], flatten_data(data_dict=data, ignore_keys=['l']), [f for f in data.keys() if f != 'l']
             else:
                 return flatten_data(data_dict=data, ignore_keys=['l'])
+
+    # ---------------------------------------------
+    def get_cov(self, r, plot_things=False, plot_tag=''):
+        """
+
+        Required inputs
+        ----------------
+        * r: int: value for r
+
+        Optional inputs
+        ---------------
+        * plot_things: bool: set to True to plot the spectra.
+                             Default: False
+        * plot_tag: str: tag to add to the saved plot fname.
+                         Default: ''
+
+        Returns
+        -------
+        * cov: 2D array: covariance matrix (based on sample variance)
+
+        """
+        import os
+        import numpy as np
+        # set up the filename
+        fname = f'{self.outdir}/cov_{self.data_tag}.npz'
+        # see if the cov is already calculated
+        if os.path.exists(fname):
+            # cov file already exists - read it in
+            print(f'## reading cov from {fname} .. ')
+            cov = np.load(fname)['cov']
+        else:
+            # set up the cov
+            ells, data, keys = self.get_prediction(r=r, return_ell_keys_too=True)
+            # now set up the (diagonal) covariance with sample variance
+            # first need the ell-array for all the spectra
+            larr = np.hstack([ells] * len(keys))
+            # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
+            cov = np.diag( data**2 * (2 / (2 * larr + 1)))
+            # save data
+            np.savez_compressed(fname, cov=cov, keys=keys, ells=ells)
+            print(f'## saved cov in {fname}')
+            # plot if specified
+            if plot_things:
+                from matplotlib.ticker import FormatStrFormatter
+                import matplotlib.pyplot as plt
+                import cmbcosmo.settings
+                plt.clf()
+                plt.imshow(cov, vmin=-1e-10, vmax=1e-10)
+                plt.colorbar()
+                # plot details
+                ax = plt.gca()
+                # minor ticks
+                ticks_minor = np.arange(self.lmax/2, len(cov), self.lmax)
+                ax.set_xticks(ticks_minor, minor=True)
+                ax.set_yticks(ticks_minor, minor=True)
+                ax.tick_params(axis='both', labelsize=18, which='minor')
+                ax.tick_params(axis='both', pad=2, which='minor')
+                # tick labels
+                if keys is not None:
+                    ax.set_xticklabels(keys, minor=True) #rotation=90)
+                    ax.set_yticklabels(keys, minor=True) #rotation=90)
+                # major ticks
+                ticks_major = np.arange(0, len(cov)+1, self.lmax)
+                print(ticks_major)
+                ax.set_xticks(ticks_major, minor=False)
+                ax.set_yticks(ticks_major, minor=False)
+                # format tick labels
+                ax.xaxis.set_major_formatter(FormatStrFormatter("%.f"))
+                ax.yaxis.set_major_formatter(FormatStrFormatter("%.f"))
+                ax.tick_params(axis='both', labelsize=12,
+                            which='major', labelcolor='grey', pad=2)
+                # save plot
+                fname = f'plot_cov{plot_tag}_{self.data_tag}.png'
+                plt.savefig(f'{self.outdir}/{fname}',
+                            bbox_inches='tight', format='png')
+                print('# saved %s' % fname)
+                plt.close()
+        return cov
