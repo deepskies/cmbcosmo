@@ -8,7 +8,7 @@ class setup_mcmc(object):
     Covariances missing right now.
     """
     # ---------------------------------------------
-    def __init__(self, datavector, param_priors, theory, outdir):
+    def __init__(self, datavector, cov, param_priors, theory, outdir):
         """
         * datavector: arr: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
         * param_priors: arr: arr of priors on the params to constrain
@@ -16,6 +16,7 @@ class setup_mcmc(object):
         * outdir: str: path to the output dir
         """
         self.datavector = datavector
+        self.covinv = np.linalg.pinv(cov)
         self.param_priors = param_priors
         self.npar = len(param_priors)
         self.theory = theory
@@ -27,14 +28,10 @@ class setup_mcmc(object):
                            to compare against data
         """
         # diff
-        #delta = theory_vec - self.datavector
-        # cov
-        #covinv = np.linalg.pinv(covmat)
+        delta = theory_vec - self.datavector
         # calculate chi2
-        #chi2 = np.linalg.multi_dot([delta, covinv, delta])
+        chi2 = np.linalg.multi_dot([delta, self.covinv, delta])
 
-        # temporary measure; without cov
-        chi2 = np.nansum((theory_vec - self.datavector)**2 / theory_vec)   
         return -0.5 * chi2
     
     # ---------------------------------------------
