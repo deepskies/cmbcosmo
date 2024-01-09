@@ -3,19 +3,25 @@ import numpy as np
 # ----------------------------------------------------------------------
 class setup_sbi(object):
     """"
+
     Class to handle various steps for SBI.
+
     """
     # ---------------------------------------------
     def __init__(self, theory):
         """
+
         * theory: theory object, initialized
+
         """
         self.theory = theory
 
     # ---------------------------------------------
     def setup_prior(self, param_priors):
         """
+
         * param_priors: arr: arr of priors on the params to constrain
+
         """
         print(f'## setting up prior ..')
         from sbi import utils as utils
@@ -26,8 +32,9 @@ class setup_sbi(object):
     # ---------------------------------------------
     def setup_posterior(self, nsims):
         """
+
         * nsims: int: nsims to run
-        * method: str: method to use for infer. Default: 'SNPE'
+
         """
         print(f'## setting up posterior ..')
         from sbi.inference.base import infer
@@ -39,8 +46,10 @@ class setup_sbi(object):
     # ---------------------------------------------
     def get_samples(self, nsamples, datavector):
         """
+
         * nsamples: int: nsamples to draw from the posterior
         * datavector: arr: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
+
         """
         print(f'## getting samples ..')
         samples = self.posterior.sample(sample_shape=(nsamples,),

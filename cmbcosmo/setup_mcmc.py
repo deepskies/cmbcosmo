@@ -4,16 +4,20 @@ import shutil
 # ----------------------------------------------------------------------
 class setup_mcmc(object):
     """"
+
     Class to handle various functions needed for MCMC.
-    Covariances missing right now.
+
     """
     # ---------------------------------------------
     def __init__(self, datavector, cov, param_priors, theory, outdir):
         """
-        * datavector: arr: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
+
+        * datavector: arr: stacked cls
+        * cov: arr: covariance matix
         * param_priors: arr: arr of priors on the params to constrain
         * theory: theory object, initialized
         * outdir: str: path to the output dir
+
         """
         self.datavector = datavector
         self.covinv = np.linalg.pinv(cov)
@@ -24,8 +28,9 @@ class setup_mcmc(object):
     # ---------------------------------------------
     def get_loglikelihood(self, theory_vec):
         """
-        * theory_vec: arr: theory array (stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE)
-                           to compare against data
+
+        * theory_vec: arr: theory array (stacked cls) to compare against data
+
         """
         # diff
         delta = theory_vec - self.datavector
@@ -37,7 +42,9 @@ class setup_mcmc(object):
     # ---------------------------------------------
     def get_logprior(self, p):
         """
+
         * p: arr: parameter array to consider
+
         """
         good_to_go = True
         # loop over all params and check to make sure this sample is within the priors
@@ -58,7 +65,9 @@ class setup_mcmc(object):
     # set up log-posterior
     def get_logposterior(self, p):
         """
+
         * p: arr: parameter array to consider
+
         """
         # check to confirm that this sample is good with the priors
         logprior = self.get_logprior(p)
@@ -76,6 +85,7 @@ class setup_mcmc(object):
                  restart=False, restart_from_burn=False,
                  progress=True):
         """
+
         * nwalkers: int: number of walkers
         * npar: int: number of parameters
         * starts: arr: array of starting positions of the walkers
@@ -87,6 +97,7 @@ class setup_mcmc(object):
                                    Default: False
         * progress: bool: set to False to not show progress bar.
                           Default: True
+
         """
         # setup sampler backend
         backend_burnin_fname = f'{self.outdir}/backend-burnin.h5'
@@ -143,12 +154,20 @@ class setup_mcmc(object):
     # get samples
     def get_samples(self, flat=True):
         """
+
         * progress: bool: set to False to get the 2D array.
                           Default: True
+
         """
         return self.sampler.get_chain(flat=flat)
     # ---------------------------------------------------------------------
     def plot_chainvals(self, truths, param_labels):
+        """
+
+        * truths: arr: truth values
+        * param_priors: arr: parameter labels
+
+        """
         from helpers_plots import plot_chainvals
         # first the chain
         plot_chainvals(chain_unflattened=self.sampler.get_chain(),

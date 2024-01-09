@@ -6,7 +6,6 @@ class theory(object):
     """
     
     Class to deal with theoretical predictions.
-    No covariances for now.
 
     """
     # ---------------------------------------------
@@ -17,28 +16,37 @@ class theory(object):
         """
         Required inputs
         ----------------
+        * lmax: int: max ell
 
         Optional inputs
         ----------------
         * verbose: bool: set to True to enable print statements
                          from deepcmbsim. Default: False
         * outdir: str or None
+        * detector_noise: bool: set to False if dont want to have
+                                detector white noise added to the
+                                signal. Default: True.
         
         """
         # set up the keys we want
         self.keys_of_interest = ['clTT', 'clEE', 'clBB', 'clEB']
         # load the default config in deepcmbsim and udpate some things
         self.config_obj = simcmb.config_obj()
-        print(f'initial config: {self.config_obj.UserParams}\n')
+        print(f'simcmb initial config: {self.config_obj.UserParams}\n')
+        # address lmax
         self.config_obj.update_val('max_l_use', lmax)
         self.lmax = lmax
+        # address verbose
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
+        # specify which cls to get
         self.config_obj.update_val('cls_wanted', self.keys_of_interest)
         # now add detector noise
         if detector_noise:
             self.config_obj.update_val('noise_type', 'detector-white')
+        # set up the outdir
         self.outdir = outdir
+        # set up the datatag (to be appended to output fileames)
         self.data_tag = f'lmax{lmax}_{len(self.keys_of_interest)}spectra'
 
     # ---------------------------------------------
@@ -49,9 +57,23 @@ class theory(object):
         ----------------
         * r: int: value for r
 
+        Optional inputs
+        ---------------
+        * plot_things: bool: set to True to plot the spectra.
+                             Default: False
+        * plot_tag: str: tag to add to the saved plot fname.
+                         Default: ''
+        * return_unflat: bool: set to True to get the dictionary, not
+                               the flattened array.
+                               Default: False
+        * return_ell_keys_too: bool: set to True to get ells, stacked spectra,
+                               and keys, and not just the stacked spectra.
+                               Default: False
+
         Returns
         -------
-        * cls: array: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
+        * cls: array: stacked spectra unless return_unflat is True
+                      or return_ell_keys_too is True.
 
         """
         self.config_obj.update_val('InitPower.r', r, verbose=self.verbose)
