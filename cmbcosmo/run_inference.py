@@ -70,9 +70,10 @@ os.makedirs(datadir, exist_ok=True)
 print(f'## saving data in {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
-theory = theory(randomseed=config_data['datavector']['randomseed'],
-                lmax=config_data['datavector']['lmax'],
-                verbose=False, outdir=datadir)
+theory = theory(lmax=config_data['datavector']['lmax'],
+                verbose=False, outdir=datadir,
+                detector_noise=config_data['datavector']['detector_white_noise']
+                )
 datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
                                    plot_things=True, plot_tag='data')
 # -----------------------------------------------
