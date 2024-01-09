@@ -11,7 +11,7 @@ paths:
 # also establishes the "truth"
 datavector:
     cosmo: {'r': 0.04}
-    lmax: 3000
+    lmax: 300
     detector_white_noise: True
 
 # inference details
