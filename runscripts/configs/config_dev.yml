@@ -22,9 +22,6 @@ inference:
     params_to_fit: ['r']
     param_labels: ['$r$']
     param_priors: [[0.001,1]]
-    # starting cosmo 
-    # using the same seed as data (above) - need to think whether this is the way to go
-    cosmo: {'r': 0.03}
     # details re mcmc
     mcmc:
         # random seed for the starting points

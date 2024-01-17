@@ -60,7 +60,7 @@ npar = len(params_to_fit)
 params_allowed = ['r', 'Alens']
 for param in params_to_fit:
     if param not in params_allowed:
-        raise ValueError('dont have functionality to fit {param}')
+        raise ValueError(f'dont have functionality to fit {param}')
 # set up truths
 datavector_param_dict = config_data['datavector']['cosmo']
 truths = np.zeros(npar)

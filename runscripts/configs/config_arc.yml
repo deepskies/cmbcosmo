@@ -22,9 +22,6 @@ inference:
     params_to_fit: ['r', 'Alens']
     param_labels: ['$r$', '$A_{lens}$']
     param_priors: [[0.001,1], [0.5,1.5]]
-    # starting cosmo
-    # using the same seed as data (above) - need to think whether this is the way to go
-    cosmo: {'r': 0.03}
     # details re mcmc
     mcmc:
         # random seed for the starting points
