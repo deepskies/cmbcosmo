@@ -114,8 +114,28 @@ if run_mcmc:
         np.random.seed(mcmc_dict['randomseed_starts'] * (i+1))
         # initalize as truth
         starts[:, i] += config_data['datavector']['cosmo'][param]
-        # add a perturbation
-        starts[:, i] += 0.1 * np.random.rand(nwalkers)
+        # now add a perturbation around the truth; 10% of prior width
+        prior_width =  abs(param_priors[i][0] - param_priors[i][1])
+        starts[:, i] += 0.1 * prior_width * np.random.rand(nwalkers)
+        # now check to make sure things are within the priors
+        # lower bound
+        ind = np.where( starts[:, i] < param_priors[i][0] )[0]
+        if len(ind) > 0:
+            print(f'## {len(ind)} walkers starting below prior for {param}')
+            # add a random perturbation
+            starts[:, ind] += (0.1*prior_width/2) * abs(np.random.rand(len(ind)))
+            print(f'## added another perturbation for {len(ind)} walkers to not be < prior\n')
+        # upper bound
+        ind = np.where( starts[:, i] > param_priors[i][1] )[0]
+        if len(ind) > 0:
+            print(f'## {len(ind)} walkers starting above prior for {param}')
+            # add a random perturbation
+            starts[:, ind] += (0.1*prior_width/2) * -abs(np.random.rand(len(ind)))
+            print(f'## added another perturbation for {len(ind)} walkers to not be > prior\n')
+        # check
+        ind = np.where( (starts[:, i] < param_priors[i][0]) | (starts[:, i] > param_priors[i][1]) )[0]
+        if len(ind) > 0:
+            raise ValueError(f'## somethings wrong - {len(ind)} starting points outside prior: {starts[:, ind]}\n')
 
     # set up mcmc details - log prior, likelihood, posterior
     mcmc_setup = setup_mcmc(datavector=datavector,
