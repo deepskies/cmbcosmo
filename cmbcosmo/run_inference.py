@@ -108,6 +108,10 @@ if run_mcmc:
 
     # starting points for the chains
     # initialize - perturbation from the truth
+    for param in params_to_fit:
+        if param not in config_data['datavector']['cosmo']:
+            raise ValueError(f'{param} not in param-dict for datavector => cant initialize walkers')
+
     starts = np.zeros(shape=(nwalkers, npar))
     for i, param in enumerate(params_to_fit):
         # set up the seed - different one for each param
