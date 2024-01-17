@@ -8,7 +8,8 @@ def plot_chainconsumer(samples, truths, param_labels,
                        starts=None, nwalkers=None, color_starts='r',
                        showplot=False, savefig=False,
                        fname=None, outdir=None,
-                       get_bestfits=False, check_convergence=False
+                       get_bestfits=False, check_convergence=False,
+                       param_ranges=None
                        ):
     """
     
@@ -42,6 +43,8 @@ def plot_chainconsumer(samples, truths, param_labels,
                           Defaut: False
     * check_convergence: boool: set to True to check convergence using
                                 chainconsumer. Default: False
+    * param_ranges: list: param ranges to impose on the subplots.
+                          Default: None
 
     """
     # ---------------------------------------------
@@ -66,6 +69,7 @@ def plot_chainconsumer(samples, truths, param_labels,
     c.configure_truth(color=color_truth)
     # plot
     fig = c.plotter.plot(truth=truths, parameters=param_labels,
+                         extents=param_ranges,
                          figsize=(2*npar, 2*npar)
                          )
     # get the axes to turn off the grid
