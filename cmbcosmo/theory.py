@@ -53,12 +53,15 @@ class theory(object):
         self.data_tag = f'lmax{lmax}_{len(self.keys_of_interest)}spectra'
 
     # ---------------------------------------------
-    def get_prediction(self, r, plot_things=False, plot_tag='',
+    def get_prediction(self, param_dict, plot_things=False, plot_tag='',
                        return_unflat=False, return_ell_keys_too=False):
         """
         Required inputs
         ----------------
-        * r: int: value for r
+        * param_dict: dict: param values to use for prediction.
+                            options: 'r', 'Alens'. having other keys
+                            won't throw an error but the values
+                            won't be used.
 
         Optional inputs
         ---------------
@@ -79,7 +82,10 @@ class theory(object):
                       or return_ell_keys_too is True.
 
         """
-        self.config_obj.update_val('InitPower.r', r, verbose=self.verbose)
+        if 'r' in param_dict:
+            self.config_obj.update_val('InitPower.r', param_dict['r'], verbose=self.verbose)
+        if 'Alens' in param_dict:
+            self.config_obj.update_val('Alens', param_dict['Alens'], verbose=self.verbose)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
         # update data tag if not all keys of interest are a
         if self.keys_of_interest + ['l'] != list(data.keys()):
@@ -115,12 +121,15 @@ class theory(object):
                 return flatten_data(data_dict=data, ignore_keys=['l'])
 
     # ---------------------------------------------
-    def get_cov(self, r, fsky=1.0, plot_things=False, plot_tag=''):
+    def get_cov(self, param_dict, fsky=1.0, plot_things=False, plot_tag=''):
         """
 
         Required inputs
         ----------------
-        * r: int: value for r
+        * param_dict: dict: param values to use for prediction.
+                            options: 'r', 'Alens'. having other keys
+                            won't throw an error but the values
+                            won't be used.
 
         Optional inputs
         ---------------
@@ -147,7 +156,7 @@ class theory(object):
             cov = np.load(fname)['cov']
         else:
             # set up the cov
-            ells, data, keys = self.get_prediction(r=r, return_ell_keys_too=True)
+            ells, data, keys = self.get_prediction(param_dict=param_dict, return_ell_keys_too=True)
             # now set up the (diagonal) covariance with sample variance
             # first need the ell-array for all the spectra
             larr = np.hstack([ells] * len(keys))

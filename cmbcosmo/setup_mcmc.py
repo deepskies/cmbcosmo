@@ -9,7 +9,7 @@ class setup_mcmc(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, datavector, cov, param_priors, theory, outdir):
+    def __init__(self, datavector, cov, param_priors, theory, outdir, param_labels_in_order):
         """
 
         * datavector: arr: stacked cls
@@ -17,6 +17,11 @@ class setup_mcmc(object):
         * param_priors: arr: arr of priors on the params to constrain
         * theory: theory object, initialized
         * outdir: str: path to the output dir
+        * param_labels_in_order: list: list of str to specific the order
+                                       of params. will be used to set up the
+                                       the dictionary for predictions; order
+                                       specified assumed as the order used
+                                       for mcmc.
 
         """
         self.datavector = datavector
@@ -25,6 +30,7 @@ class setup_mcmc(object):
         self.npar = len(param_priors)
         self.theory = theory
         self.outdir = outdir
+        self.param_labels_in_order = param_labels_in_order
     # ---------------------------------------------
     def get_loglikelihood(self, theory_vec):
         """
@@ -76,7 +82,11 @@ class setup_mcmc(object):
             # i.e. value outside the prior => unlikely
             return -np.inf
 
-        prediction = self.theory.get_prediction(r=p)
+        param_dict = {}
+        for i, key in enumerate(self.param_labels_in_order):
+            param_dict[key] = p[i]
+
+        prediction = self.theory.get_prediction(param_dict=param_dict)
         return self.get_loglikelihood(theory_vec=prediction) + logprior
     # ---------------------------------------------
     # set up the sampler, burn in, post-burn

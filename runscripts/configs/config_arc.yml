@@ -10,7 +10,7 @@ paths:
 # details for datavector generation
 # also establishes the "truth"
 datavector:
-    cosmo: {'r': 0.04}
+    cosmo: {'r': 0.04, 'Alens': 1.0}
     lmax: 300
     detector_white_noise: True
     fsky: 1.0
@@ -19,9 +19,9 @@ datavector:
 # inference details
 inference:
     # likelihood params, details
-    params_to_fit: ['r']
-    param_labels: ['$r$']
-    param_priors: [[0.001,1]]
+    params_to_fit: ['r', 'Alens']
+    param_labels: ['$r$', '$A_{lens}$']
+    param_priors: [[0.001,1], [0.5,1.5]]
     # starting cosmo
     # using the same seed as data (above) - need to think whether this is the way to go
     cosmo: {'r': 0.03}

@@ -46,7 +46,7 @@ debug = options.debug
 # set up the config
 config_data = setup_config(config_path=config_path)
 if debug:
-    config_data['inference']['mcmc']['nwalkers'] = 2
+    config_data['inference']['mcmc']['nwalkers'] = 5
     config_data['inference']['mcmc']['nburn'] = 5
     config_data['inference']['mcmc']['nchain'] = 5
     config_data['inference']['sbi']['infer_nsims'] = 10
@@ -57,12 +57,15 @@ param_labels = config_data['inference']['param_labels']
 param_priors = config_data['inference']['param_priors']
 npar = len(params_to_fit)
 # check to make sure we can handle the requested params to fit
-params_allowed = ['r']
+params_allowed = ['r', 'Alens']
 for param in params_to_fit:
     if param not in params_allowed:
         raise ValueError('dont have functionality to fit {param}')
 # set up truths
-truths = list(config_data['datavector']['cosmo'].values())
+datavector_param_dict = config_data['datavector']['cosmo']
+truths = np.zeros(npar)
+for i, param in enumerate(params_to_fit):
+    truths[i] = datavector_param_dict[param]
 # set up datadir
 datadir = config_data['paths']['outdir'] + 'data'
 # make sure folder exists
@@ -75,7 +78,7 @@ theory = theory(lmax=config_data['datavector']['lmax'],
                 verbose=False, outdir=datadir,
                 detector_noise=config_data['datavector']['detector_white_noise']
                 )
-datavector = theory.get_prediction(r=config_data['datavector']['cosmo']['r'],
+datavector = theory.get_prediction(param_dict=datavector_param_dict,
                                    plot_things=True, plot_tag='data')
 # -----------------------------------------------
 starts, nwalkers = None, None
@@ -99,21 +102,28 @@ if run_mcmc:
     print(f'## saving mcmc stuff in {outdir}')
 
     # setup the covariance
-    cov = theory.get_cov(r=config_data['datavector']['cosmo']['r'],
+    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
                          fsky=config_data['datavector']['fsky'],
                          plot_things=True, plot_tag='')
 
     # starting points for the chains
     # initialize - perturbation from the truth
-    np.random.seed(mcmc_dict['randomseed_starts'])
-    starts = list(config_data['datavector']['cosmo'].values())
-    starts += 0.1 * np.random.randn(nwalkers, npar)
+    starts = np.zeros(shape=(nwalkers, npar))
+    for i, param in enumerate(params_to_fit):
+        # set up the seed - different one for each param
+        np.random.seed(mcmc_dict['randomseed_starts'] * (i+1))
+        # initalize as truth
+        starts[:, i] += config_data['datavector']['cosmo'][param]
+        # add a perturbation
+        starts[:, i] += 0.1 * np.random.rand(nwalkers)
+
     # set up mcmc details - log prior, likelihood, posterior
     mcmc_setup = setup_mcmc(datavector=datavector,
                             cov=cov,
                             param_priors=param_priors,
                             theory=theory,
-                            outdir=outdir
+                            outdir=outdir,
+                            param_labels_in_order=params_to_fit
                             )
     # set up the sampler, bunrin, post
     mcmc_setup.run_mcmc(nwalkers=nwalkers,
@@ -138,7 +148,9 @@ if run_sbi:
     nsims = sbi_dict['infer_nsims']
     nsamples = sbi_dict['posterior_nsamples']
     # set up sbi
-    sbi_setup = setup_sbi(theory=theory)
+    sbi_setup = setup_sbi(theory=theory,
+                          param_labels_in_order=params_to_fit
+                          )
     # construct prior
     sbi_setup.setup_prior(param_priors=param_priors)
     # construct posterior
@@ -186,9 +198,11 @@ for key in samples:
         print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
 
     # bestfit cls
-    datavector = theory.get_prediction(r=truths[0], plot_things=False,
+    datavector = theory.get_prediction(param_dict={key: truths[i] for i,key in enumerate(params_to_fit)},
+                                       plot_things=False,
                                        return_unflat=True)
-    bestfitvector = theory.get_prediction(r=bestfit[0], plot_things=False,
+    bestfitvector = theory.get_prediction(param_dict={key: bestfit[i] for i,key in enumerate(params_to_fit)},
+                                          plot_things=False,
                                           return_unflat=True)
     import matplotlib.pyplot as plt
     import cmbcosmo.settings

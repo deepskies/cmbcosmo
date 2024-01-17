@@ -8,13 +8,14 @@ class setup_sbi(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, theory):
+    def __init__(self, theory, param_labels_in_order):
         """
 
         * theory: theory object, initialized
 
         """
         self.theory = theory
+        self.param_labels_in_order = param_labels_in_order
 
     # ---------------------------------------------
     def setup_prior(self, param_priors):
@@ -30,6 +31,15 @@ class setup_sbi(object):
         high = [param_priors[i][1] for i in range(self.npar)]
         self.prior = utils.BoxUniform(low=low, high=high)
     # ---------------------------------------------
+    def simulator(self, params):
+
+        param_dict = {}
+        for i, key in enumerate(self.param_labels_in_order):
+            param_dict[key] = params[i]
+
+        return self.theory.get_prediction(param_dict=param_dict)
+
+    # ---------------------------------------------
     def setup_posterior(self, nsims):
         """
 
@@ -38,7 +48,7 @@ class setup_sbi(object):
         """
         print(f'## setting up posterior ..')
         from sbi.inference.base import infer
-        self.posterior = infer(simulator=self.theory.get_prediction,
+        self.posterior = infer(simulator=self.simulator,
                                prior=self.prior,
                                method='SNPE',
                                num_simulations=nsims, 
