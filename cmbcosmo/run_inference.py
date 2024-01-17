@@ -216,6 +216,43 @@ for key in samples:
                              get_bestfits=True, check_convergence=not debug
                             )
     bestfit, bestfit_low, bestfit_upp = out
+    # replot with prior limits
+    fname = f'plot_{key}_chainconsumer_prior-limited-ranges.png'
+    plot_chainconsumer(samples=samples[key],
+                       truths=truths,
+                       param_labels=param_labels,
+                       color_posterior=None, color_truth=None,
+                       starts=starts, nwalkers=nwalkers,
+                       color_starts='r',
+                       showplot=False, savefig=True, fname=fname, outdir=outdir,
+                       get_bestfits=False, check_convergence=not debug,
+                       param_ranges=param_priors,
+                    )
+    # replot with truth-centric limits
+    fname = f'plot_{key}_chainconsumer_truth-limited-ranges.png'
+    param_ranges = list(np.zeros_like(param_priors))
+    for i in range(npar):
+        delta = abs( param_priors[i][0] - param_priors[i][1] )
+        param_ranges[i][0] = truths[i] - delta/2
+        param_ranges[i][1] = truths[i] + delta/2
+        # make sure we aren't going past the priors
+        # lower bound
+        if param_ranges[i][0] < param_priors[i][0]:
+            param_ranges[i][0] = param_priors[i][0]
+        # upper bound
+        if param_ranges[i][1] > param_priors[i][1]:
+            param_ranges[i][1] = param_priors[i][1]
+    # plot
+    plot_chainconsumer(samples=samples[key],
+                       truths=truths,
+                       param_labels=param_labels,
+                       color_posterior=None, color_truth=None,
+                       starts=starts, nwalkers=nwalkers,
+                       color_starts='r',
+                       showplot=False, savefig=True, fname=fname, outdir=outdir,
+                       get_bestfits=False, check_convergence=not debug,
+                       param_ranges=param_ranges,
+                    )
     print(f'\n## {key}')
     print('## bestfits vs truth')
     for i in range(npar):
