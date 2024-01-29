@@ -1,0 +1,36 @@
+# paths to be used
+# current_machine should be the machine on which code is
+# run and <current_machine>_paths should be present.
+# setup_config will setup the outdir based on current_machine.
+paths:
+    current_machine: 'arc'
+    arc_paths:
+        outdir: '~/deepskies/cmbcosmo/outdir/'
+
+# details for datavector generation
+# also establishes the "truth"
+datavector:
+    cosmo: {'r': 0.04, 'Alens': 1.0}
+    lmax: 300
+    detector_white_noise: True
+    fsky: 1.0
+    cls_to_consider: ['clTT', 'clEE', 'clBB']
+
+# inference details
+inference:
+    # likelihood params, details
+    params_to_fit: ['Alens']
+    param_labels: ['$A_{lens}$']
+    param_priors: [[0.5, 1.5]]
+    # details re mcmc
+    mcmc:
+        # random seed for the starting points
+        randomseed_starts: 4627
+        # chain details
+        nwalkers: 20
+        nburn: 40
+        nchain: 40
+    # details re sbi
+    sbi:
+        infer_nsims: 1000
+        posterior_nsamples: 1000

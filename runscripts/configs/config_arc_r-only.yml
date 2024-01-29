@@ -14,22 +14,22 @@ datavector:
     lmax: 300
     detector_white_noise: True
     fsky: 1.0
-    cls_to_consider: ['clTT', 'clEE', 'clBB', 'clEB']
+    cls_to_consider: ['clTT', 'clEE', 'clBB']
 
 # inference details
 inference:
     # likelihood params, details
-    params_to_fit: ['r', 'Alens']
-    param_labels: ['$r$', '$A_{lens}$']
-    param_priors: [[0.001,1], [0.5,1.5]]
+    params_to_fit: ['r']
+    param_labels: ['$r$']
+    param_priors: [[0.001,1]]
     # details re mcmc
     mcmc:
         # random seed for the starting points
         randomseed_starts: 4627
         # chain details
-        nwalkers: 100
-        nburn: 1000
-        nchain: 1000
+        nwalkers: 20
+        nburn: 40
+        nchain: 40
     # details re sbi
     sbi:
         infer_nsims: 1000
