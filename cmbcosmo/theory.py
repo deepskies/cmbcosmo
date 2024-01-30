@@ -9,7 +9,7 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, lmax,
+    def __init__(self, lmin, lmax,
                  cls_to_consider=['clTT', 'clEE', 'clBB', 'clEB'],
                  verbose=False, outdir=None,
                  detector_noise=True
@@ -17,6 +17,7 @@ class theory(object):
         """
         Required inputs
         ----------------
+        * lmin: int: min ell
         * lmax: int: max ell
 
         Optional inputs
@@ -36,6 +37,9 @@ class theory(object):
         # load the default config in deepcmbsim and udpate some things
         self.config_obj = simcmb.config_obj()
         print(f'simcmb initial config: {self.config_obj.UserParams}\n')
+        # address lmin
+        self.config_obj.update_val('lmin', lmin)
+        self.lmin = lmin
         # address lmax
         self.config_obj.update_val('max_l_use', lmax)
         self.lmax = lmax
@@ -89,7 +93,7 @@ class theory(object):
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
         # update data tag if not all keys of interest are a
         if self.keys_of_interest + ['l'] != list(data.keys()):
-            self.data_tag = f'lmax{self.lmax}_{len(data.keys())-1}spectra'
+            self.data_tag = f'lmin{self.lmin}_lmax{self.lmax}_{len(data.keys())-1}spectra'
         # see if need to plot things
         if plot_things:
             if self.outdir is None:
@@ -170,24 +174,28 @@ class theory(object):
                 from matplotlib.ticker import FormatStrFormatter
                 import matplotlib.pyplot as plt
                 import cmbcosmo.settings
+                # set up the delta to deal with lmin
+                delta_l = self.lmax - self.lmin + 1
+                min_, max_ = self.lmin, self.lmin+delta_l*len(keys)
+                # now plot
                 plt.clf()
-                plt.imshow(cov, vmin=-1e-10, vmax=1e-10)
+                plt.imshow(cov, vmin=-1e-10, vmax=1e-10,
+                           extent=[min_, max_, max_, min_]
+                           )
                 plt.colorbar()
                 # plot details
                 ax = plt.gca()
                 # minor ticks
-                ticks_minor = np.arange(self.lmax/2, len(cov), self.lmax)
+                ticks_minor = np.arange(delta_l/2, len(cov), delta_l)
                 ax.set_xticks(ticks_minor, minor=True)
                 ax.set_yticks(ticks_minor, minor=True)
                 ax.tick_params(axis='both', labelsize=18, which='minor')
                 ax.tick_params(axis='both', pad=2, which='minor')
                 # tick labels
-                if keys is not None:
-                    ax.set_xticklabels(keys, minor=True) #rotation=90)
-                    ax.set_yticklabels(keys, minor=True) #rotation=90)
+                ax.set_xticklabels(keys, minor=True) #rotation=90)
+                ax.set_yticklabels(keys, minor=True) #rotation=90)
                 # major ticks
-                ticks_major = np.arange(0, len(cov)+1, self.lmax)
-                print(ticks_major)
+                ticks_major = np.arange(min_, max_+1, delta_l)
                 ax.set_xticks(ticks_major, minor=False)
                 ax.set_yticks(ticks_major, minor=False)
                 # format tick labels

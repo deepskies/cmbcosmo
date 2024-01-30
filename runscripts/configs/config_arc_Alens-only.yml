@@ -11,7 +11,7 @@ paths:
 # also establishes the "truth"
 datavector:
     cosmo: {'r': 0.04, 'Alens': 1.0}
-    lmax: 300
+    lmin_lmax: [5,300]
     detector_white_noise: True
     fsky: 0.9
     cls_to_consider: ['clBB']

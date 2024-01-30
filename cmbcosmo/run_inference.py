@@ -73,7 +73,8 @@ os.makedirs(datadir, exist_ok=True)
 print(f'## saving data in {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
-theory = theory(lmax=config_data['datavector']['lmax'],
+lmin, lmax = config_data['datavector']['lmin_lmax']
+theory = theory(lmin=lmin, lmax=lmax,
                 cls_to_consider=config_data['datavector']['cls_to_consider'],
                 verbose=False, outdir=datadir,
                 detector_noise=config_data['datavector']['detector_white_noise']
