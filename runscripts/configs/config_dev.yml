@@ -13,8 +13,8 @@ datavector:
     cosmo: {'r': 0.04}
     lmax: 300
     detector_white_noise: True
-    fsky: 1.0
-    cls_to_consider: ['clTT', 'clEE', 'clBB', 'clEB']
+    fsky: 0.9
+    cls_to_consider: ['clBB']
 
 # inference details
 inference:
