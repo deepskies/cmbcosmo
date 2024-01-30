@@ -81,6 +81,8 @@ theory = theory(lmin=lmin, lmax=lmax,
                 )
 datavector = theory.get_prediction(param_dict=datavector_param_dict,
                                    plot_things=True, plot_tag='data')
+# add a tag for the datavector
+datatag = f'lmin{lmin}_lmax{lmax}_{len(config_data["datavector"]["cls_to_consider"])}spectra'
 # -----------------------------------------------
 starts, nwalkers = None, None
 samples, outdirs = {}, {}
@@ -94,7 +96,7 @@ if run_mcmc:
     nsteps_burn, nsteps_chain = mcmc_dict['nburn'], mcmc_dict['nchain']
     # set up the outdir
     outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps_burn}burn_{nsteps_chain}post_' \
-                + config_data['outtag']
+                + config_data['outtag'] + '_' + datatag
     if debug:
         outdir = f'debug_{outdir}'
     outdir = config_data['paths']['outdir'] + outdir
@@ -185,7 +187,7 @@ if run_sbi:
                                            datavector=datavector
                                            )
     # set up the outdir
-    outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag']
+    outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag'] + '_' + datatag
     if debug:
         outdir = f'debug_{outdir}'
     outdir = config_data['paths']['outdir'] + outdir
