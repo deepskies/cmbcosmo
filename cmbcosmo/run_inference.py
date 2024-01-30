@@ -18,12 +18,12 @@ parser.add_option('--mcmc',
 parser.add_option('--sbi',
                   action='store_true', dest='sbi', default=False,
                   help='use to run SBI.')
-parser.add_option('--restart-mcmc',
-                  action='store_true', dest='restart_mcmc', default=False,
-                  help='use to restart mcmc.')
 parser.add_option('--restart-mcmc-burn',
-                  action='store_true', dest='restart_mcmc_burn', default=False,
-                  help='use to restart mcmc burn too.')
+                  action='store_true', dest='restart_mcmc_fromburn', default=False,
+                  help='use to restart mcmc from burnin (using backend).')
+parser.add_option('--restart-mcmc-postburn',
+                  action='store_true', dest='restart_mcmc_postburn', default=False,
+                  help='use to restart mcmc post-burnin (using backend).')
 parser.add_option('--debug',
                   action='store_true', dest='debug', default=False,
                   help='run everything in debug mode.')
@@ -39,8 +39,8 @@ print('\n## inputs: %s' % options)
 config_path = options.config_path
 run_mcmc = options.mcmc
 run_sbi = options.sbi
-restart_mcmc = options.restart_mcmc
-restart_mcmc_burn = options.restart_mcmc_burn
+restart_mcmc_postburn = options.restart_mcmc_postburn
+restart_mcmc_fromburn = options.restart_mcmc_fromburn
 debug = options.debug
 # -----------------------------------------------
 # set up the config
@@ -155,7 +155,8 @@ if run_mcmc:
     # set up the sampler, bunrin, post
     mcmc_setup.run_mcmc(nwalkers=nwalkers,
                         starts=starts, nsteps_burn=nsteps_burn, nsteps_post=nsteps_chain,
-                        restart=restart_mcmc, restart_from_burn=restart_mcmc_burn,
+                        restart_from_burn=restart_mcmc_fromburn,
+                        restart_from_postburn=restart_mcmc_postburn,
                         progress=True
                         )
     # get samples

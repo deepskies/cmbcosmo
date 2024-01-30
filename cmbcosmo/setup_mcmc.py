@@ -92,7 +92,7 @@ class setup_mcmc(object):
     # set up the sampler, burn in, post-burn
     def run_mcmc(self, nwalkers,
                  starts, nsteps_burn, nsteps_post,
-                 restart=False, restart_from_burn=False,
+                 restart_from_burn=False, restart_from_postburn=False,
                  progress=True):
         """
 
@@ -101,10 +101,11 @@ class setup_mcmc(object):
         * starts: arr: array of starting positions of the walkers
         * nsteps_burnin: int: number of steps for burn-in
         * nsteps_post: int: number of steps for post-burn-in
-        * restart: bool: set to True to restart using the backend
-                         Default: False
         * restart_from_burn: bool: set to True restart from burn in
                                    Default: False
+        * restart_from_postburn: bool: set to True to restart using
+                                 the backend for postburn.
+                                 Default: False
         * progress: bool: set to False to not show progress bar.
                           Default: True
 
@@ -118,24 +119,26 @@ class setup_mcmc(object):
                                         self.get_logposterior,
                                         backend=backend)
         # figure out where to start from
-        if restart:
-            if restart_from_burn:
-                print('## resuming burn in ... ')
-                # run the chain; n-steps modified based on how many were completed before
-                pos, _, _ = sampler.run_mcmc(None,
-                                             nsteps_burn - backend.iteration,   progress=progress)
-                # save the backend for the burn in
-                shutil.copy(backend_fname, backend_burnin_fname)
-                # now reset the sampler
-                sampler.reset()
-                # run post-burn
-                print('## running the full chain ... ')
-                sampler.run_mcmc(None, nsteps_post, progress=progress)
-            else:
-                print('## resuming the chain ... ')
-                # run the chain; n-steps modified based on how many were completed before
-                sampler.run_mcmc(None, nsteps_post - backend.iteration, progress=progress)
+        if restart_from_burn:
+            # restart from burn
+            print('## resuming burn in ... ')
+            # run the chain; n-steps modified based on how many were completed before
+            pos, _, _ = sampler.run_mcmc(None,
+                                            nsteps_burn - backend.iteration,   progress=progress)
+            # save the backend for the burn in
+            shutil.copy(backend_fname, backend_burnin_fname)
+            # now reset the sampler
+            sampler.reset()
+            # run post-burn
+            print('## running the full chain ... ')
+            sampler.run_mcmc(None, nsteps_post, progress=progress)
+        elif restart_from_postburn:
+            # start from postburn
+            print('## resuming the chain postburn ... ')
+            # run the chain; n-steps modified based on how many were completed before
+            sampler.run_mcmc(None, nsteps_post - backend.iteration, progress=progress)
         else:
+            # start from scratch
             # ------
             print('## burning in ... ')
             # run burn-in
