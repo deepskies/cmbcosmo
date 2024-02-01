@@ -278,7 +278,7 @@ for key in samples:
     for i in range(npar):
         print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
 
-    # bestfit cls
+    # bestfit cls - and relative residuals
     datavector = theory.get_prediction(param_dict={key: truths[i] for i,key in enumerate(params_to_fit)},
                                        plot_things=False,
                                        return_unflat=True)
@@ -288,15 +288,28 @@ for key in samples:
     import matplotlib.pyplot as plt
     import cmbcosmo.settings
     plt.clf()
-    for dkey in datavector:
+    fig, axes = plt.subplots(2,1, sharex=True, height_ratios=[2,1])
+    plt.subplots_adjust(hspace=0)
+    for dind, dkey in enumerate(datavector):
         if dkey != 'l':
-            plt.loglog(datavector['l'], datavector[dkey], '.-', label=dkey)
-            plt.loglog(bestfitvector['l'], bestfitvector[dkey], 'k-')
-    plt.legend()
-    plt.xlabel(r'$\ell$')
-    plt.ylabel(r'$C_\ell$')
+            # add datavector
+            axes[0].loglog(datavector['l'], datavector[dkey], '.-', label=f'datavector: {dkey}')
+            # add bestfit
+            if dind == len(datavector)-1:
+                label = 'bestfit'
+            else:
+                label = None
+            axes[0].loglog(bestfitvector['l'], bestfitvector[dkey], 'k-', label=label)
+            # add relative residuals
+            axes[1].plot(datavector['l'], 100 * (bestfitvector[dkey] - datavector[dkey]) / datavector[dkey], '.-', label=dkey)
+    # plot details
+    axes[0].legend(loc='upper left')
+    axes[0].set_ylabel(r'$C_\ell$')
+    axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (%)')
+    axes[-1].set_xlabel(r'$\ell$')
+    # save plot
     fname = f'plot_{key}_cls_comparison.png'
-    plt.title(key)
+    plt.suptitle(config_data['outtag'], y=0.99)
     plt.savefig(f'{outdir}/{fname}',
                 bbox_inches='tight', format='png')
     print('\n## saved %s' % fname)
