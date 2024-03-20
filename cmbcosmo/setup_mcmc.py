@@ -56,7 +56,7 @@ class setup_mcmc(object):
         # loop over all params and check to make sure this sample is within the priors
         i, out = 0, 0
         while good_to_go is True and i < self.npar:
-            if self.param_priors[i][0] <= p[i] <= self.param_priors[i][1]:
+            if self.param_priors[i][0] <= p[i] < self.param_priors[i][1]:
                 out += np.log( 1 / (self.param_priors[i][1] - self.param_priors[i][0]) )
             else:
                 good_to_go = False
