@@ -14,6 +14,12 @@ class setup_sbi(object):
         """
 
         * theory: theory object, initialized
+        * outdir: str: path to the output dir
+        * param_labels_in_order: list: list of str to specify the order
+                                       of params. will be used to set up the
+                                       the dictionary for predictions; order
+                                       specified assumed as the order used
+                                       for sbi.
 
         """
         self.theory = theory
@@ -35,7 +41,11 @@ class setup_sbi(object):
         self.prior = utils.BoxUniform(low=low, high=high)
     # ---------------------------------------------
     def simulator(self, params):
+        """
 
+        * params: arr: arr of params to reproduce the "sim" for
+
+        """
         param_dict = {}
         for i, key in enumerate(self.param_labels_in_order):
             param_dict[key] = params[i]
@@ -47,6 +57,8 @@ class setup_sbi(object):
         """
 
         * nsims: int: nsims to run
+        * restart: bool: set to True to read posterior from disk.
+                         Default: False
 
         """
         print(f'## setting up posterior ..')
@@ -73,7 +85,8 @@ class setup_sbi(object):
         """
 
         * nsamples: int: nsamples to draw from the posterior
-        * datavector: arr: stacked clTT, clEE, clBB, clTE, clPP, clPT, clPE
+        * datavector: arr: stacked spectra
+        * seed: int: seed to be used for generating samples
 
         """
         print(f'## getting samples ..')
