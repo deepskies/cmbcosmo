@@ -187,30 +187,20 @@ if run_sbi:
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving sbi stuff in {outdir}')
 
-    samples_fname = f'{outdir}/samples.npz'
-    if reanalyze_sbi:
-        if os.path.exists(samples_fname):
-            print(f'## reading samples from {samples_fname} ...')
-            samples['sbi'] = np.load(samples_fname)['samples']
-        else:
-            raise ValueError(f'{samples_fname} doesnt exist. rerun without the reanalyze option?')
-    else:
-        from setup_sbi import setup_sbi
-        # set up sbi
-        sbi_setup = setup_sbi(theory=theory,
-                              param_labels_in_order=params_to_fit
-                              )
-        # construct prior
-        sbi_setup.setup_prior(param_priors=param_priors)
-        # construct posterior
-        sbi_setup.setup_posterior(nsims=nsims)
-        # get samples
-        samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
-                                               datavector=datavector
-                                               )
-        # lets save the samples for later
-        print(f'## saving samples as {samples_fname}')
-        np.savez_compressed(samples_fname, samples=samples['sbi'])
+    from setup_sbi import setup_sbi
+    # set up sbi
+    sbi_setup = setup_sbi(theory=theory,
+                          param_labels_in_order=params_to_fit,
+                          outdir=outdir
+                          )
+    # construct prior
+    sbi_setup.setup_prior(param_priors=param_priors)
+    # construct posterior
+    sbi_setup.setup_posterior(nsims=nsims, restart=reanalyze_sbi)
+    # get samples
+    samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
+                                           datavector=datavector
+                                           )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')

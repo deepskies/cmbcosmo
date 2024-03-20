@@ -1,5 +1,6 @@
 import numpy as np
-
+import os
+import pickle
 # ----------------------------------------------------------------------
 class setup_sbi(object):
     """"
@@ -8,13 +9,14 @@ class setup_sbi(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, theory, param_labels_in_order):
+    def __init__(self, theory, outdir, param_labels_in_order):
         """
 
         * theory: theory object, initialized
 
         """
         self.theory = theory
+        self.outdir = outdir
         self.param_labels_in_order = param_labels_in_order
 
     # ---------------------------------------------
@@ -40,7 +42,7 @@ class setup_sbi(object):
         return self.theory.get_prediction(param_dict=param_dict)
 
     # ---------------------------------------------
-    def setup_posterior(self, nsims):
+    def setup_posterior(self, nsims, restart=False):
         """
 
         * nsims: int: nsims to run
@@ -48,11 +50,23 @@ class setup_sbi(object):
         """
         print(f'## setting up posterior ..')
         from sbi.inference.base import infer
-        self.posterior = infer(simulator=self.simulator,
+        fname = 'sbi_posterior.pickle'
+        if restart:
+            if not os.path.exists(f'{self.outdir}/{fname}'):
+                raise ValueError(f'cant restart since {fname} not found in {self.outdir}.')
+            else:
+                # read in
+                print(f'## reading in saved posteriors from {self.outdir}/{fname}')
+                self.posterior = pickle.load( open(f'{self.outdir}/{fname}', 'rb') )
+        else:
+            self.posterior = infer(simulator=self.simulator,
                                prior=self.prior,
                                method='SNPE',
                                num_simulations=nsims, 
                                )
+            # now save the posterior for later
+            pickle.dump( self.posterior, open(f'{self.outdir}/{fname}', 'wb' ) )
+            print(f'## saved posterior as {self.outdir}/{fname}')
     # ---------------------------------------------
     def get_samples(self, nsamples, datavector):
         """
