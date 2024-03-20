@@ -21,7 +21,7 @@ inference:
     # likelihood params, details
     params_to_fit: ['r', 'Alens']
     param_labels: ['$r$', '$A_{lens}$']
-    param_priors: [[0.001,1], [0.5, 1.5]]
+    param_priors: [[0,1], [0.5, 1.5]]
     # details re mcmc
     mcmc:
         # random seed for the starting points
