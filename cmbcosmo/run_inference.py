@@ -199,7 +199,8 @@ if run_sbi:
     sbi_setup.setup_posterior(nsims=nsims, restart=reanalyze_sbi)
     # get samples
     samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
-                                           datavector=datavector
+                                           datavector=datavector,
+                                           seed=sbi_dict['sampling_seed']
                                            )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir

@@ -10,7 +10,7 @@ paths:
 # details for datavector generation
 # also establishes the "truth"
 datavector:
-    cosmo: {'r': 0.04}
+    cosmo:  {'r': 0.04, 'Alens': 1.0}
     lmin_lmax: [5,300]
     detector_white_noise: True
     fsky: 0.9
@@ -34,3 +34,4 @@ inference:
     sbi:
         infer_nsims: 50
         posterior_nsamples: 1000
+        sampling_seed: 1425

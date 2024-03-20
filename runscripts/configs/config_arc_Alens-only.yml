@@ -34,3 +34,4 @@ inference:
     sbi:
         infer_nsims: 1000
         posterior_nsamples: 1000
+        sampling_seed: 1425

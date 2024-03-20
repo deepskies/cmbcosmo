@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import pickle
+import torch
 # ----------------------------------------------------------------------
 class setup_sbi(object):
     """"
@@ -68,7 +69,7 @@ class setup_sbi(object):
             pickle.dump( self.posterior, open(f'{self.outdir}/{fname}', 'wb' ) )
             print(f'## saved posterior as {self.outdir}/{fname}')
     # ---------------------------------------------
-    def get_samples(self, nsamples, datavector):
+    def get_samples(self, nsamples, datavector, seed):
         """
 
         * nsamples: int: nsamples to draw from the posterior
@@ -76,6 +77,8 @@ class setup_sbi(object):
 
         """
         print(f'## getting samples ..')
+        _ = torch.manual_seed(seed)
+
         samples = self.posterior.sample(sample_shape=(nsamples,),
                                         x=datavector
                                         )
