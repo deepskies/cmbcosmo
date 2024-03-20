@@ -55,6 +55,8 @@ class theory(object):
         self.outdir = outdir
         # set up the datatag (to be appended to output fileames)
         self.data_tag = f'lmax{lmax}_{len(self.keys_of_interest)}spectra'
+        # nells - to be set once the cls are created
+        self.nells = None
 
     # ---------------------------------------------
     def get_prediction(self, param_dict, plot_things=False, plot_tag='',
@@ -91,6 +93,14 @@ class theory(object):
         if 'Alens' in param_dict:
             self.config_obj.update_val('Alens', param_dict['Alens'], verbose=self.verbose)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
+
+        # nells
+        nells = len(data[list(data.keys())[0]])
+        if self.nells is None:
+            self.nells = nells
+        else:
+            if nells != self.nells:
+                raise ValueError('somethings weird - dealing with nells = {nells} vs {self.nells} from before')
         # update data tag if not all keys of interest are a
         if self.keys_of_interest + ['l'] != list(data.keys()):
             self.data_tag = f'lmin{self.lmin}_lmax{self.lmax}_{len(data.keys())-1}spectra'

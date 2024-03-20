@@ -223,10 +223,10 @@ if not run_mcmc and not run_sbi:
 print(f'\n## processing results (if applicable) .. \n')
 # now plot things
 from helpers_plots import plot_chainconsumer
-for key in samples:
-    outdir = outdirs[key]
-    fname = f'plot_{key}_chainconsumer.png'
-    out = plot_chainconsumer(samples=samples[key],
+for tech_tag in samples:
+    outdir = outdirs[tech_tag]
+    fname = f'plot_{tech_tag}_chainconsumer.png'
+    out = plot_chainconsumer(samples=samples[tech_tag],
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=None,
@@ -237,8 +237,8 @@ for key in samples:
                             )
     bestfit, bestfit_low, bestfit_upp = out
     # replot with prior limits
-    fname = f'plot_{key}_chainconsumer_prior-limited-ranges.png'
-    plot_chainconsumer(samples=samples[key],
+    fname = f'plot_{tech_tag}_chainconsumer_prior-limited-ranges.png'
+    plot_chainconsumer(samples=samples[tech_tag],
                        truths=truths,
                        param_labels=param_labels,
                        color_posterior=None, color_truth=None,
@@ -249,7 +249,7 @@ for key in samples:
                        param_ranges=param_priors,
                     )
     # replot with truth-centric limits
-    fname = f'plot_{key}_chainconsumer_truth-limited-ranges.png'
+    fname = f'plot_{tech_tag}_chainconsumer_truth-limited-ranges.png'
     param_ranges = list(np.zeros_like(param_priors))
     for i in range(npar):
         delta = abs( param_priors[i][0] - param_priors[i][1] )
@@ -263,7 +263,7 @@ for key in samples:
         if param_ranges[i][1] > param_priors[i][1]:
             param_ranges[i][1] = param_priors[i][1]
     # plot
-    plot_chainconsumer(samples=samples[key],
+    plot_chainconsumer(samples=samples[tech_tag],
                        truths=truths,
                        param_labels=param_labels,
                        color_posterior=None, color_truth=None,
@@ -273,7 +273,7 @@ for key in samples:
                        get_bestfits=False, check_convergence=not debug,
                        param_ranges=param_ranges,
                     )
-    print(f'\n## {key}')
+    print(f'\n## {tech_tag}')
     print('## bestfits vs truth')
     for i in range(npar):
         print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
@@ -286,7 +286,7 @@ for key in samples:
                                           plot_things=False,
                                           return_unflat=True)
     import matplotlib.pyplot as plt
-    import cmbcosmo.settings
+    from cmbcosmo.settings import *
     plt.clf()
     fig, axes = plt.subplots(2,1, sharex=True, height_ratios=[2,1])
     plt.subplots_adjust(hspace=0)
@@ -308,7 +308,7 @@ for key in samples:
     axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (%)')
     axes[-1].set_xlabel(r'$\ell$')
     # save plot
-    fname = f'plot_{key}_cls_comparison.png'
+    fname = f'plot_{tech_tag}_cls_comparison.png'
     plt.suptitle(config_data['outtag'], y=0.99)
     plt.savefig(f'{outdir}/{fname}',
                 bbox_inches='tight', format='png')
