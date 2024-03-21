@@ -192,6 +192,22 @@ class setup_sbi(object):
                            labels=[r"log($C_{%s}$)" % ells[d] for d in subset_inds_to_plot],
                            figsize=(ninds * 2, ninds * 2),
                            )
+        # lets set up the limits to ensure we see everything
+        # first min, max from the sampples
+        min_, max_ = np.min(np.log(x_pp_subset)), np.max(np.log(x_pp_subset))
+        # now loop in datavector
+        min_ = min([min_, np.min(np.log(datavector))])
+        max_ = min([max_, np.max(np.log(datavector))])
+        # now implement
+        for nrow in range(len(axes)):
+            for ncol in range(len(axes)):
+                # diagonal is a count histogram => update xlims
+                if nrow == ncol:
+                    axes[nrow, ncol].set_xlim([min_, max_])
+                # upper diagonal subplots need both lims updated
+                if nrow < ncol:
+                    axes[nrow, ncol].set_ylim([min_, max_])
+                    axes[nrow, ncol].set_xlim([min_, max_])
         # title
         plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
         # save plot
