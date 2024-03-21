@@ -35,3 +35,7 @@ inference:
         infer_nsims: 1000
         posterior_nsamples: 1000
         sampling_seed: 1425
+        # predictive checks (pc) related
+        pc_nsamples: 500
+        pc_seed: 10
+        pc_inds_for_pairplot: [0,1,2,3,4,10,15,20,25]

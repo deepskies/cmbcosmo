@@ -55,6 +55,7 @@ if debug:
     config_data['inference']['mcmc']['nchain'] = 5
     config_data['inference']['sbi']['infer_nsims'] = 10
     config_data['inference']['sbi']['posterior_nsamples'] = 10
+    config_data['inference']['sbi']['pc_nsamples'] = 5
 # now pull some things from the config
 params_to_fit = config_data['inference']['params_to_fit']
 param_labels = config_data['inference']['param_labels']
@@ -202,6 +203,13 @@ if run_sbi:
                                            datavector=datavector,
                                            seed=sbi_dict['sampling_seed']
                                            )
+    # predictive checks
+    sbi_setup.run_pred_checks(datavector=datavector,
+                              nsamples=sbi_dict['pc_nsamples'],
+                              datavector_param_dict=datavector_param_dict,
+                              seed=sbi_dict['pc_seed'],
+                              subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
+                            )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
