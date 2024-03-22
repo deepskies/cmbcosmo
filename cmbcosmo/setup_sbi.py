@@ -299,3 +299,87 @@ class setup_sbi(object):
                                 subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
                                 )
         print(f'## all done. time taken: {(time.time() - time0) / 60: .2f} min')
+
+# ---------------------------------------------
+    def run_sim_based_check(self, nsbc_runs, nsamples, seed):
+        """
+
+        run simulation based check.
+
+        * nsbc_runs: int: number of runs for SBC
+                          from documentation: should be ~100s or ideally 1000
+        * nsamples: int: nsamples to draw from the posterior
+        * seed: int: seed to be used for generating samples
+
+        """
+        print(f'\n## running simulation based check ..')
+        time0 = time.time()
+
+        # generate ground truth parameters and corresponding simulated observations
+        # set seed
+        _ = torch.manual_seed(seed)
+        # sample from prior params for SBC
+        thetas = self.prior.sample((nsbc_runs,))
+        # now simulate "obervations"
+        print(f'## simulating observations ..')
+        xs = []
+        for theta_o in tqdm(thetas.numpy()):
+            xs.append(
+                self.theory.get_prediction(
+                    param_dict={
+                        self.param_labels_in_order[i]: val for i,val in enumerate(np.array(theta_o))
+                        }
+                    )
+                )
+        xs = torch.FloatTensor(xs)
+
+        # run sbc now
+        from sbi.analysis import check_sbc, run_sbc, sbc_rank_plot
+        print(f'## running run_sbc ..')
+        ranks, dap_samples = run_sbc(thetas, xs, self.posterior, num_posterior_samples=nsamples)
+        print(f'## running check_sbc ..')
+        check_stats = check_sbc(ranks, thetas, dap_samples, num_posterior_samples=nsamples)
+
+        # set up plots
+        print(f'## working on plots ..')
+        # title
+        title = f"ks_pvals = {check_stats['ks_pvals'].numpy()} ;\n"
+        title += f"c2st_ranks = {check_stats['c2st_ranks'].numpy()} ; "
+        title += f"c2st_dap = {check_stats['c2st_dap'].numpy()}"
+        # sbc params tag
+        tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples_{seed}seed'
+
+        # figure out nbins
+        if nsbc_runs/20 < 1:
+            num_bins = 10
+        else:
+            num_bins = None
+        print(f'num_bins = {num_bins}')
+        # rank plot
+        f, _ = sbc_rank_plot(ranks=ranks,
+                             num_posterior_samples=nsamples,
+                             plot_type="hist",
+                             num_bins=num_bins,
+                             figsize=((self.npar*5, 5))
+                             )
+        # add title
+        f.suptitle(title)
+        # save fig
+        fname = f'plot_sbc_rank-plot_{tag}.png'
+        plt.savefig(f'{self.outdir}/{fname}', format='png', bbox_inches='tight')
+        print('## saved %s' % fname )
+        plt.close()
+
+        # cdf plot
+        f, _ = sbc_rank_plot(ranks, nsamples, plot_type="cdf",
+                              num_bins=num_bins, figsize=((8, 5))
+                              )
+        # add title
+        f.suptitle(title)
+        # save fig
+        fname = f'plot_sbc_cdf_{tag}.png'
+        plt.savefig(f'{self.outdir}/{fname}', format='png', bbox_inches='tight')
+        print('## saved %s' % fname )
+        plt.close()
+
+        print(f'## time taken: {(time.time() - time0) / 60: .2f} min')

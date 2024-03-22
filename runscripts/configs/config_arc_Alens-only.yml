@@ -39,3 +39,7 @@ inference:
         pc_nsamples: 500
         pc_seed: 10
         pc_inds_for_pairplot: [0,1,2,3,4,10,15,20,25]
+        # simulation based check (sbc) related
+        sbc_nruns: 1000
+        sbc_nsamples: 1000
+        sbc_seed: 15

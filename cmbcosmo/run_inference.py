@@ -56,6 +56,8 @@ if debug:
     config_data['inference']['sbi']['infer_nsims'] = 10
     config_data['inference']['sbi']['posterior_nsamples'] = 10
     config_data['inference']['sbi']['pc_nsamples'] = 5
+    config_data['inference']['sbi']['sbc_nruns'] = 10
+    config_data['inference']['sbi']['sbc_nsamples'] = 5
 # now pull some things from the config
 params_to_fit = config_data['inference']['params_to_fit']
 param_labels = config_data['inference']['param_labels']
@@ -210,6 +212,11 @@ if run_sbi:
                               seed=sbi_dict['pc_seed'],
                               subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
                             )
+    # sbc
+    sbi_setup.run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
+                                  nsamples=sbi_dict['sbc_nsamples'],
+                                  seed=sbi_dict['sbc_seed']
+                                  )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
     print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
