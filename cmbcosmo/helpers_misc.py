@@ -1,5 +1,5 @@
 import numpy as np
-
+import time
 __all__ = ['flatten_data']
 
 # ------------------------------------------------------------------------------
@@ -33,3 +33,12 @@ def flatten_data(data_dict, ignore_keys=None):
             else:
                 data = np.hstack([data, data_dict[key]])
     return data
+
+# ------------------------------------------------------------------------------
+def get_time_passed(time0):
+    # time passed
+    timepassed = (time.time() - time0)/60
+    if timepassed > 60:
+        return(f'time taken: {(timepassed)/60: .2f} hrs')
+    else:
+        return(f'time taken: {(timepassed): .2f} min')

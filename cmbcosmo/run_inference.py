@@ -6,6 +6,7 @@ import numpy as np
 import os
 from cmbcosmo.setup_config import setup_config
 from cmbcosmo.theory import theory
+from cmbcosmo.helpers_misc import get_time_passed
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
@@ -167,7 +168,7 @@ if run_mcmc:
                         )
     # get samples
     samples['mcmc'] = mcmc_setup.get_samples(flat=True)
-    print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
+    print(f'\n## time taken: {get_time_passed(time0=time0)}')
     # save chainvals
     mcmc_setup.plot_chainvals(truths=truths, param_labels=param_labels)
     print('# ----------')
@@ -218,7 +219,7 @@ if run_sbi:
                                   )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
-    print(f'\n## time taken: {(time.time() - time0)/60: .2f} min')
+    print(f'\n## time taken: {get_time_passed(time0=time0)}')
     print('# ----------')
 
 if not run_mcmc and not run_sbi:
@@ -347,4 +348,5 @@ for tech_tag in samples:
                 bbox_inches='tight', format='png')
     print('\n## saved %s' % fname)
     plt.close()
-print(f'\n## overall time taken: {(time.time() - start_time)/60: .2f} min')
+
+print(f'\n## overall time taken: {get_time_passed(time0=start_time)}')

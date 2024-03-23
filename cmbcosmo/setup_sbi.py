@@ -5,6 +5,7 @@ import torch
 import time
 from tqdm import tqdm
 import cmbcosmo.settings
+from cmbcosmo.helpers_misc import get_time_passed
 import matplotlib.pyplot as plt
 from sbi.analysis import pairplot
 # ----------------------------------------------------------------------
@@ -66,7 +67,9 @@ class setup_sbi(object):
                          Default: False
 
         """
+        print('## ---')
         print(f'## setting up posterior ..')
+        time0 = time.time()
         from sbi.inference.base import infer
         fname = 'sbi_posterior.pickle'
         if restart:
@@ -85,6 +88,8 @@ class setup_sbi(object):
             # now save the posterior for later
             pickle.dump( self.posterior, open(f'{self.outdir}/{fname}', 'wb' ) )
             print(f'## saved posterior as {self.outdir}/{fname}')
+        print(f'## time taken done. {get_time_passed(time0=time0)}')
+        print('## ---')
     # ---------------------------------------------
     def get_samples(self, nsamples, datavector, seed):
         """
@@ -270,9 +275,10 @@ class setup_sbi(object):
                                     in the pairport; more than 10 is likely not a good idea.
 
         """
+        print('## ---')
+        print(f'## running predictive checks with {nsamples} samples to be drawn ..')
         time0 = time.time()
         seed_tag = f'seed{seed}forsampling'
-        print(f'\n## running predictive checks with {nsamples} samples to be drawn ..')
         # run things for the prior
         print(f'\n## running prior predictive check ..')
         # set the seed
@@ -298,8 +304,9 @@ class setup_sbi(object):
                                 datavector=datavector, datavector_param_dict=datavector_param_dict,
                                 subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
                                 )
-        print(f'## all done. time taken: {(time.time() - time0) / 60: .2f} min')
-
+        # time passed
+        print(f'## all done. {get_time_passed(time0=time0)}')
+        print('## ---')
 # ---------------------------------------------
     def run_sim_based_check(self, nsbc_runs, nsamples, seed):
         """
@@ -312,7 +319,8 @@ class setup_sbi(object):
         * seed: int: seed to be used for generating samples
 
         """
-        print(f'\n## running simulation based check ..')
+        print('## ---')
+        print(f'## running simulation based check ..')
         time0 = time.time()
 
         # generate ground truth parameters and corresponding simulated observations
@@ -382,4 +390,6 @@ class setup_sbi(object):
         print('## saved %s' % fname )
         plt.close()
 
-        print(f'## time taken: {(time.time() - time0) / 60: .2f} min')
+        # time passed:
+        print(f'## all done. time taken: {get_time_passed(time0=time0)}')
+        print('## ---')
