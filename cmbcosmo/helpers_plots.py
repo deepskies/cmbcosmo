@@ -9,7 +9,7 @@ def plot_chainconsumer(samples, truths, param_labels,
                        showplot=False, savefig=False,
                        fname=None, outdir=None,
                        get_bestfits=False, check_convergence=False,
-                       param_ranges=None
+                       param_ranges=None, title=None
                        ):
     """
     
@@ -45,6 +45,7 @@ def plot_chainconsumer(samples, truths, param_labels,
                                 chainconsumer. Default: False
     * param_ranges: list: param ranges to impose on the subplots.
                           Default: None
+    * title: str: title to add to the plot. Default: None
 
     """
     # ---------------------------------------------
@@ -75,6 +76,13 @@ def plot_chainconsumer(samples, truths, param_labels,
     # get the axes to turn off the grid
     ax_list = fig.axes
     for ax in ax_list: ax.grid(False)
+
+    if title is not None:
+        if npar == 1:
+            y = 1.1
+        else:
+            y = 1.05
+        plt.suptitle(title, y=y) # need a better way to determine the y value
 
     # plot starts if specified
     if starts is not None:

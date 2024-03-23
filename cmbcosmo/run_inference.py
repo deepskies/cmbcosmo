@@ -90,6 +90,10 @@ datavector = theory.get_prediction(param_dict=datavector_param_dict,
                                    plot_things=True, plot_tag='data')
 # add a tag for the datavector
 datatag = f'lmin{lmin}_lmax{lmax}_{len(config_data["datavector"]["cls_to_consider"])}spectra'
+# setup the covariance - used in mcmc and chi2 numbers in the final plots
+cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
+                        fsky=config_data['datavector']['fsky'],
+                        plot_things=True, plot_tag='')
 # -----------------------------------------------
 starts, nwalkers = None, None
 samples, outdirs = {}, {}
@@ -110,11 +114,6 @@ if run_mcmc:
     # make sure folder exists
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving mcmc stuff in {outdir}')
-
-    # setup the covariance
-    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
-                         fsky=config_data['datavector']['fsky'],
-                         plot_things=True, plot_tag='')
 
     # starting points for the chains
     # initialize - perturbation from the truth
@@ -242,6 +241,21 @@ for tech_tag in samples:
                              get_bestfits=True, check_convergence=not debug
                             )
     bestfit, bestfit_low, bestfit_upp = out
+    # set up the chi2
+    # first need to get the cls (stacked)
+    truth_dict = {key: truths[i] for i,key in enumerate(params_to_fit)}
+    datavector = theory.get_prediction(param_dict=truth_dict,
+                                       plot_things=False)
+    bestfit_dict = {key: bestfit[i] for i,key in enumerate(params_to_fit)}
+    bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
+                                          plot_things=False)
+    # diff
+    delta = datavector - bestfitvector
+    # calculate chi2
+    chi2 = np.linalg.multi_dot([delta, np.linalg.pinv(cov), delta])
+    ndof = len(datavector) - len(params_to_fit)
+    # set up title
+    title = r'$\chi^2_{data}$ = ' + f'{chi2:.2f}' + f'; / ndof ({ndof}) = {chi2/ndof:.2f}'
     # replot with prior limits
     fname = f'plot_{tech_tag}_chainconsumer_prior-limited-ranges.png'
     plot_chainconsumer(samples=samples[tech_tag],
@@ -253,6 +267,7 @@ for tech_tag in samples:
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
                        get_bestfits=False, check_convergence=not debug,
                        param_ranges=param_priors,
+                       title=title
                     )
     # replot with truth-centric limits
     fname = f'plot_{tech_tag}_chainconsumer_truth-limited-ranges.png'
@@ -278,6 +293,7 @@ for tech_tag in samples:
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
                        get_bestfits=False, check_convergence=not debug,
                        param_ranges=param_ranges,
+                       title=title
                     )
     print(f'\n## {tech_tag}')
     print('## bestfits vs truth')
@@ -285,12 +301,21 @@ for tech_tag in samples:
         print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
 
     # bestfit cls - and relative residuals
-    datavector = theory.get_prediction(param_dict={key: truths[i] for i,key in enumerate(params_to_fit)},
+    # need dictionaries (same as flatted for 1spec ..)
+    datavector = theory.get_prediction(param_dict=truth_dict,
                                        plot_things=False,
                                        return_unflat=True)
-    bestfitvector = theory.get_prediction(param_dict={key: bestfit[i] for i,key in enumerate(params_to_fit)},
+    bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
                                           plot_things=False,
                                           return_unflat=True)
+    # also rework the param dicts to have only max two decimals
+    truth_label = {}
+    for key in truth_dict:
+        truth_label[key] = float(f'{truth_dict[key]:.2f}')
+    bestfit_label = {}
+    for key in bestfit_dict:
+        bestfit_label[key] = float(f'{bestfit_dict[key]:.2f}')
+
     import matplotlib.pyplot as plt
     from cmbcosmo.settings import *
     plt.clf()
@@ -299,10 +324,12 @@ for tech_tag in samples:
     for dind, dkey in enumerate(datavector):
         if dkey != 'l':
             # add datavector
-            axes[0].loglog(datavector['l'], datavector[dkey], '.-', label=f'datavector: {dkey}')
+            axes[0].loglog(datavector['l'], datavector[dkey], '.-',
+                           label=f'datavector: {dkey} from {truth_label}'
+                           )
             # add bestfit
             if dind == len(datavector)-1:
-                label = 'bestfit'
+                label = f'bestfit: {bestfit_label}; {title}'
             else:
                 label = None
             axes[0].loglog(bestfitvector['l'], bestfitvector[dkey], 'k-', label=label)
