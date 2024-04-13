@@ -361,4 +361,10 @@ for tech_tag in samples:
     print('\n## saved %s' % fname)
     plt.close()
 
+    # save config data in the outdir - for later reference
+    with open(f'{outdir}/config_data.txt', 'w') as f:
+        print(datetime.datetime.now(), file=f)
+        print(f'\n## inputs: {options}', file=f)
+        print(f'\n## config_data: {config_data}', file=f)
+
 print(f'\n## overall time taken: {get_time_passed(time0=start_time)}')

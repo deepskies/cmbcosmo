@@ -70,7 +70,7 @@ class setup_sbi(object):
         print(f'## setting up posterior ..')
         time0 = time.time()
         from sbi.inference.base import infer
-        fname = 'sbi_posterior.pickle'
+        fname = f'sbi_posterior_nsims{nsims}.pickle'
         if restart:
             if not os.path.exists(f'{self.outdir}/{fname}'):
                 raise ValueError(f'cant restart since {fname} not found in {self.outdir}.')
