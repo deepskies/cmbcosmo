@@ -127,7 +127,7 @@ if run_mcmc:
         # set up the seed - different one for each param
         np.random.seed(mcmc_dict['randomseed_starts'] * (i+1))
         # initalize as truth
-        starts[:, i] += config_data['datavector']['cosmo'][param]
+        starts[:, i] += datavector_param_dict[param]
         # now add a perturbation around the truth; 10% of prior width
         prior_width =  abs(param_priors[i][0] - param_priors[i][1])
         starts[:, i] += 0.1 * prior_width * np.random.rand(nwalkers)
@@ -317,7 +317,6 @@ for tech_tag in samples:
     for key in bestfit_dict:
         bestfit_label[key] = float(f'{bestfit_dict[key]:.2f}')
 
-    import matplotlib.pyplot as plt
     from cmbcosmo.settings import *
     plt.clf()
     fig, axes = plt.subplots(2,1, sharex=True, height_ratios=[2,1])

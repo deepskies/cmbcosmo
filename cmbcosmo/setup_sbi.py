@@ -4,9 +4,8 @@ import pickle
 import torch
 import time
 from tqdm import tqdm
-import cmbcosmo.settings
+from cmbcosmo.settings import *
 from cmbcosmo.helpers_misc import get_time_passed
-import matplotlib.pyplot as plt
 from sbi.analysis import pairplot
 # ----------------------------------------------------------------------
 class setup_sbi(object):

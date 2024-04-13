@@ -64,7 +64,7 @@ def plot_chainconsumer(samples, truths, param_labels,
                 color=color_posterior, walkers=nwalkers)
     c.configure(statistics='mean', summary=False,
                 label_font_size=20, tick_font_size=16,
-                usetex=False, serif=False,
+                usetex=True, serif=False,
                 )
     # add truth
     c.configure_truth(color=color_truth)
@@ -161,10 +161,10 @@ def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
 
     if npar == 1:
         axes.legend(bbox_to_anchor=(1, 1))
-        axes.set_xlabel('# of steps')
+        axes.set_xlabel('\# of steps')
     else:
         axes[0].legend(bbox_to_anchor=(1, 1))
-        axes[-1].set_xlabel('# of steps')
+        axes[-1].set_xlabel('\# of steps')
 
     fig.set_size_inches(10, 6*npar/3)
 

@@ -19,6 +19,9 @@ for axis in ['x', 'y']:
     rcparams['%stick.minor.width' % axis] = 1.5
 rcparams['xtick.top'] = True
 rcparams['ytick.right'] = True
+rcparams['text.usetex'] = True
+rcparams['font.family'] = 'serif'
+rcparams['font.serif'] = 'cm'
 
 # set up the plotting params
 for key in rcparams: mpl.rcParams[key] = rcparams[key]

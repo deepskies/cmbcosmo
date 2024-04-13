@@ -1,5 +1,6 @@
 import deepcmbsim as simcmb
 from cmbcosmo.helpers_misc import flatten_data
+from cmbcosmo.settings import *
 
 # get theory predictions
 class theory(object):
@@ -108,8 +109,6 @@ class theory(object):
         if plot_things:
             if self.outdir is None:
                 raise ValueError('outdir much be set for plotting things.')
-            import matplotlib.pyplot as plt
-            import cmbcosmo.settings
             plt.clf()
             for key in data:
                 if key != 'l':
@@ -182,8 +181,6 @@ class theory(object):
             # plot if specified
             if plot_things:
                 from matplotlib.ticker import FormatStrFormatter
-                import matplotlib.pyplot as plt
-                import cmbcosmo.settings
                 # set up the delta to deal with lmin
                 delta_l = self.lmax - self.lmin + 1
                 min_, max_ = self.lmin, self.lmin+delta_l*len(keys)
