@@ -231,6 +231,8 @@ print(f'\n## processing results (if applicable) .. \n')
 from helpers_plots import plot_chainconsumer
 for tech_tag in samples:
     outdir = outdirs[tech_tag]
+    # --
+    # not saving this plot just yet
     fname = f'plot_{tech_tag}_chainconsumer.png'
     out = plot_chainconsumer(samples=samples[tech_tag],
                              truths=truths,
@@ -238,10 +240,11 @@ for tech_tag in samples:
                              color_posterior=None, color_truth=None,
                              starts=starts, nwalkers=nwalkers,
                              color_starts='r',
-                             showplot=False, savefig=True, fname=fname, outdir=outdir,
+                             showplot=False, savefig=False, fname=fname, outdir=outdir,
                              get_bestfits=True, check_convergence=not debug
                             )
     bestfit, bestfit_low, bestfit_upp = out
+    # --
     # set up the chi2
     # first need to get the cls (stacked)
     datavector = theory.get_prediction(param_dict=datavector_param_dict,
@@ -262,7 +265,19 @@ for tech_tag in samples:
     ndof = len(datavector) - len(params_to_fit)
     # set up title
     title = r'$\chi^2_{data}$ = ' + f'{chi2:.2f}' + f'; / ndof ({ndof}) = {chi2/ndof:.2f}'
-    # replot with prior limits
+    # --
+    # now plot above, with the title - and save
+    out = plot_chainconsumer(samples=samples[tech_tag],
+                             truths=truths,
+                             param_labels=param_labels,
+                             color_posterior=None, color_truth=None,
+                             starts=starts, nwalkers=nwalkers,
+                             color_starts='r',
+                             showplot=False, savefig=True, fname=fname, outdir=outdir,
+                             get_bestfits=False, check_convergence=not debug,
+                             title=title
+                            )
+    # now replot with prior limits
     fname = f'plot_{tech_tag}_chainconsumer_prior-limited-ranges.png'
     plot_chainconsumer(samples=samples[tech_tag],
                        truths=truths,
