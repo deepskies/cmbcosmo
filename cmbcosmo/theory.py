@@ -12,6 +12,7 @@ class theory(object):
     # ---------------------------------------------
     def __init__(self, lmin, lmax,
                  cls_to_consider=['clTT', 'clEE', 'clBB', 'clEB'],
+                 fsky=1.0,
                  verbose=False, outdir=None,
                  detector_noise=True
                  ):
@@ -25,6 +26,8 @@ class theory(object):
         ----------------
         * cls_to_consider: list: list of cls to consider.
                                  Default: ['clTT', 'clEE', 'clBB', 'clEB']
+        * fsky: float: fraction of sky to consider.
+                       Default: 1.0
         * verbose: bool: set to True to enable print statements
                          from deepcmbsim. Default: False
         * outdir: str or None
@@ -44,6 +47,8 @@ class theory(object):
         # address lmax
         self.config_obj.update_val('max_l_use', lmax)
         self.lmax = lmax
+        # address fsky
+        self.fsky = fsky
         # address verbose
         self.verbose = verbose
         self.config_obj.update_val('verbose', int(self.verbose))
@@ -134,7 +139,7 @@ class theory(object):
                 return flatten_data(data_dict=data, ignore_keys=['l'])
 
     # ---------------------------------------------
-    def get_cov(self, param_dict, fsky=1.0, plot_things=False, plot_tag=''):
+    def get_cov(self, param_dict, plot_things=False, plot_tag=''):
         """
 
         Required inputs
@@ -146,8 +151,6 @@ class theory(object):
 
         Optional inputs
         ---------------
-        * fsky: float: fraction of sky to consider.
-                       Default: 1.0
         * plot_things: bool: set to True to plot the spectra.
                              Default: False
         * plot_tag: str: tag to add to the saved plot fname.
@@ -174,7 +177,7 @@ class theory(object):
             # first need the ell-array for all the spectra
             larr = np.hstack([ells] * len(keys))
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
-            cov = np.diag( data**2 * (2 / (fsky * (2 * larr + 1))) )
+            cov = np.diag( data**2 * (2 / (self.fsky * (2 * larr + 1))) )
             # save data
             np.savez_compressed(fname, cov=cov, keys=keys, ells=ells)
             print(f'## saved cov in {fname}')

@@ -84,6 +84,7 @@ print(f'## saving data in {datadir}')
 lmin, lmax = config_data['datavector']['lmin_lmax']
 theory = theory(lmin=lmin, lmax=lmax,
                 cls_to_consider=config_data['datavector']['cls_to_consider'],
+                fsky=config_data['datavector']['fsky'],
                 verbose=False, outdir=datadir,
                 detector_noise=config_data['datavector']['detector_white_noise']
                 )
@@ -93,8 +94,7 @@ datavector = theory.get_prediction(param_dict=datavector_param_dict,
 datatag = f'lmin{lmin}_lmax{lmax}_{len(config_data["datavector"]["cls_to_consider"])}spectra'
 # setup the covariance - used in mcmc and chi2 numbers in the final plots
 cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
-                        fsky=config_data['datavector']['fsky'],
-                        plot_things=True, plot_tag='')
+                     plot_things=True, plot_tag='')
 # -----------------------------------------------
 starts, nwalkers = None, None
 samples, outdirs = {}, {}
