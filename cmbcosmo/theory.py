@@ -164,7 +164,8 @@ class theory(object):
         import os
         import numpy as np
         # set up the filename
-        fname = f'{self.outdir}/cov_{self.data_tag}.npz'
+        param_tag = str(param_dict)[1:][:-1].replace(':', '').replace("'", "").replace(" ", "").replace(',', '_')
+        fname = f'{self.outdir}/cov_{self.data_tag}_{param_tag}.npz'
         # see if the cov is already calculated
         if os.path.exists(fname):
             # cov file already exists - read it in
@@ -214,7 +215,7 @@ class theory(object):
                 ax.tick_params(axis='both', labelsize=12,
                             which='major', labelcolor='grey', pad=2)
                 # save plot
-                fname = f'plot_cov{plot_tag}_{self.data_tag}.png'
+                fname = f'plot_cov{plot_tag}_{self.data_tag}_{param_tag}.png'
                 plt.savefig(f'{self.outdir}/{fname}',
                             bbox_inches='tight', format='png')
                 print('# saved %s' % fname)
