@@ -250,12 +250,16 @@ for tech_tag in samples:
     datavector = theory.get_prediction(param_dict=datavector_param_dict,
                                        plot_things=False)
     bestfit_dict = {key: bestfit[i] for i,key in enumerate(params_to_fit)}
+    bestfit_lower_dict = {key: bestfit[i]-bestfit_low[i] for i,key in enumerate(params_to_fit)}
+    bestfit_upper_dict = {key: bestfit[i]+bestfit_upp[i] for i,key in enumerate(params_to_fit)}
     # adding any missing params
     # need to make sure that everything else is the same as for the
     # datavector except the params to fit
     for key in datavector_param_dict:
         if key not in bestfit_dict:
             bestfit_dict[key] = datavector_param_dict[key]
+            bestfit_lower_dict[key] = datavector_param_dict[key]
+            bestfit_upper_dict[key] = datavector_param_dict[key]
     bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
                                           plot_things=False)
     # diff
@@ -339,10 +343,16 @@ for tech_tag in samples:
     bestfit_label = ''
     for key in datavector_param_dict:
         if key in params_to_fit:
+            # i.e. we have a fit
             key_ = r'$\textbf{%s}$' % key
+            bestfit_label += key_ + r': $%.2f^{+%.2f}_{-%.2f}$, ' % (bestfit_dict[key],
+                                                                     bestfit_upper_dict[key] - bestfit_dict[key],
+                                                                     bestfit_dict[key] - bestfit_lower_dict[key],
+                                                                    )
         else:
-            key_ = key
-        bestfit_label += key_ + f': {bestfit_dict[key]:.2f}, '
+            # i.e. we have the truth value
+            bestfit_label += key + f': {bestfit_dict[key]:.2f}, '
+    # finalize
     bestfit_label = r'\{%s\}' % bestfit_label[:-2]
 
     from cmbcosmo.settings import *
@@ -370,7 +380,7 @@ for tech_tag in samples:
     axes[-1].set_xlabel(r'$\ell$')
     # save plot
     fname = f'plot_{tech_tag}_cls_comparison.png'
-    plt.suptitle(config_data['outtag'], y=0.99)
+    plt.suptitle(r'$%s$' % config_data['outtag'].replace('_', '; ').replace('<=', '\leq '), y=0.99)
     plt.savefig(f'{outdir}/{fname}',
                 bbox_inches='tight', format='png')
     print('\n## saved %s' % fname)
