@@ -55,7 +55,9 @@ class setup_sbi(object):
         for i, key in enumerate(self.param_labels_in_order):
             param_dict[key] = params[i]
 
-        return self.theory.get_prediction(param_dict=param_dict)
+        return self.theory.get_prediction(param_dict=param_dict,
+                                          add_sample_variance=True
+                                          )
 
     # ---------------------------------------------
     def setup_posterior(self, nsims, restart=False):

@@ -1,6 +1,8 @@
 import deepcmbsim as simcmb
 from cmbcosmo.helpers_misc import flatten_data
 from cmbcosmo.settings import *
+import numpy as np
+from scipy.stats import norm
 
 # get theory predictions
 class theory(object):
@@ -65,7 +67,8 @@ class theory(object):
         self.nells = None
 
     # ---------------------------------------------
-    def get_prediction(self, param_dict, plot_things=False, plot_tag='',
+    def get_prediction(self, param_dict, add_sample_variance=False,
+                       plot_things=False, plot_tag='',
                        return_unflat=False, return_ell_keys_too=False):
         """
         Required inputs
@@ -77,6 +80,9 @@ class theory(object):
 
         Optional inputs
         ---------------
+        * add_sample_variance: bool: set to True to add sample variance
+                                     to the prediction.
+                                     Default: False
         * plot_things: bool: set to True to plot the spectra.
                              Default: False
         * plot_tag: str: tag to add to the saved plot fname.
@@ -100,6 +106,23 @@ class theory(object):
             self.config_obj.update_val('Alens', param_dict['Alens'], verbose=self.verbose)
         data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
 
+        data_flat = flatten_data(data_dict=data, ignore_keys=['l'])
+        # now add sample variance, if applicable
+        # its more complicated to with work a dictionary instead of a flat array so make that a requirement
+        if add_sample_variance:
+            if return_unflat:
+                raise ValueError(f'add_sample_variance only works when returning flattened data.')
+            # first check if the sigma from the sample variance is available
+            if not hasattr(self, 'sigma_sample_var'):
+                self.sigma_sample_var = np.sqrt( data_flat**2 * (2 / (self.fsky * (2 * data['l'] + 1))) )
+            # now add random pick from a normal distribution with sigma being the sigma from sample variance
+            mean = np.zeros_like(data_flat)
+            data_flat += norm.rvs(loc=mean,
+                                  scale=self.sigma_sample_var ,
+                                  size=len(mean)
+                                  )
+        # --
+        # misc bookkeeping stuff
         # nells
         nells = len(data[list(data.keys())[0]])
         if self.nells is None:
@@ -110,6 +133,7 @@ class theory(object):
         # update data tag if not all keys of interest are a
         if self.keys_of_interest + ['l'] != list(data.keys()):
             self.data_tag = f'lmin{self.lmin}_lmax{self.lmax}_{len(data.keys())-1}spectra'
+        # --
         # see if need to plot things
         if plot_things:
             if self.outdir is None:
@@ -121,6 +145,8 @@ class theory(object):
             plt.legend()
             plt.xlabel(r'$\ell$')
             plt.ylabel(r'$C_\ell$')
+            if add_sample_variance:
+                plt.title('WITH sample variance added to cls')
             if plot_tag != '':
                 plot_tag = '_' + plot_tag
             fname = f'plot_cls{plot_tag}_{self.data_tag}.png'
@@ -134,9 +160,9 @@ class theory(object):
         else:
             if return_ell_keys_too:
                 # return: ells, flattened data without ells, keys flattened
-                return  data['l'], flatten_data(data_dict=data, ignore_keys=['l']), [f for f in data.keys() if f != 'l']
+                return  data['l'], data_flat, [f for f in data.keys() if f != 'l']
             else:
-                return flatten_data(data_dict=data, ignore_keys=['l'])
+                return data_flat
 
     # ---------------------------------------------
     def get_cov(self, param_dict, plot_things=False, plot_tag=''):
@@ -179,6 +205,9 @@ class theory(object):
             larr = np.hstack([ells] * len(keys))
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
             cov = np.diag( data**2 * (2 / (self.fsky * (2 * larr + 1))) )
+            # lets also store this for other use
+            if not hasattr(self, 'sigma_sample_var'):
+                self.sigma_sample_var = np.sqrt(cov.diagonal())
             # save data
             np.savez_compressed(fname, cov=cov, keys=keys, ells=ells)
             print(f'## saved cov in {fname}')
