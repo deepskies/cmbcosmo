@@ -333,6 +333,12 @@ for tech_tag in samples:
     bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
                                           plot_things=False,
                                           return_unflat=True)
+    bestfit_lower_vector = theory.get_prediction(param_dict=bestfit_lower_dict,
+                                                 plot_things=False,
+                                                 return_unflat=True)
+    bestfit_upper_vector = theory.get_prediction(param_dict=bestfit_upper_dict,
+                                                 plot_things=False,
+                                                 return_unflat=True)
     # set up the labels
     # truth label
     truth_label = ''
@@ -362,18 +368,29 @@ for tech_tag in samples:
     for dind, dkey in enumerate(datavector):
         if dkey != 'l':
             # add datavector
-            axes[0].loglog(datavector['l'], datavector[dkey], '.-',
-                           label=f'datavector: {dkey} from {truth_label}'
-                           )
+            axes[0].plot(datavector['l'], datavector[dkey], '.-',
+                         label=f'datavector: {dkey} from {truth_label}'
+                         )
             # add bestfit
             if dind == len(datavector)-1:
                 label = r'bestfit: %s; %s' % (bestfit_label, title)
             else:
                 label = None
-            axes[0].loglog(bestfitvector['l'], bestfitvector[dkey], 'k-', label=label)
+            axes[0].plot(bestfitvector['l'], bestfitvector[dkey], 'k.-', label=label)
+            axes[0].fill_between(bestfitvector['l'],
+                                 bestfit_lower_vector[dkey],
+                                 bestfit_upper_vector[dkey], color='k', alpha=0.1)
             # add relative residuals
-            axes[1].plot(datavector['l'], 100 * (bestfitvector[dkey] - datavector[dkey]) / datavector[dkey], '.-', label=dkey)
+            axes[1].plot(datavector['l'],
+                         100 * (bestfitvector[dkey] - datavector[dkey]) / datavector[dkey],
+                         'k.-', label=dkey)
+            axes[1].fill_between(bestfitvector['l'],
+                                 100 * (bestfit_lower_vector[dkey] - datavector[dkey]) / datavector[dkey],
+                                100 *  (bestfit_upper_vector[dkey] - datavector[dkey]) / datavector[dkey],
+                                color='k', alpha=0.1)
     # plot details
+    axes[0].set_xscale('log')
+    axes[0].set_yscale('log')
     axes[0].legend(loc='upper left')
     axes[0].set_ylabel(r'$C_\ell$')
     axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (\%)')
