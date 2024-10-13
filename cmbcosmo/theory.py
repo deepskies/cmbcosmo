@@ -140,8 +140,13 @@ class theory(object):
                 raise ValueError('outdir much be set for plotting things.')
             plt.clf()
             for key in data:
+                if key.__contains__('cl'):
+                    print(key)
+                    label = r'$C_{\ell,%s}$' % (key.split('cl')[-1])
+                else:
+                    label = key
                 if key != 'l':
-                    plt.loglog(data['l'], data[key], '.-', label=key)
+                    plt.loglog(data['l'], data[key], '.-', label=label)
             plt.legend()
             plt.xlabel(r'$\ell$')
             plt.ylabel(r'$C_\ell$')
@@ -232,8 +237,14 @@ class theory(object):
                 ax.tick_params(axis='both', labelsize=18, which='minor')
                 ax.tick_params(axis='both', pad=2, which='minor')
                 # tick labels
-                ax.set_xticklabels(keys, minor=True) #rotation=90)
-                ax.set_yticklabels(keys, minor=True) #rotation=90)
+                labels = []
+                for label in keys:
+                    if label.__contains__('cl'):
+                        print(label)
+                        label = r'$C_{\ell,%s}$' % (label.split('cl')[-1])
+                    labels.append(label)
+                ax.set_xticklabels(labels, minor=True) #rotation=90)
+                ax.set_yticklabels(labels, minor=True) #rotation=90)
                 # major ticks
                 ticks_major = np.arange(min_, max_+1, delta_l)
                 ax.set_xticks(ticks_major, minor=False)

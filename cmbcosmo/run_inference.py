@@ -372,6 +372,10 @@ for tech_tag in samples:
     plt.subplots_adjust(hspace=0)
     for dind, dkey in enumerate(datavector):
         if dkey != 'l':
+            if dkey.__contains__('cl'):
+                label = r'$C_{\ell,%s}$' % (dkey.split('cl')[-1])
+            else:
+                label = dkey
             # add datavector
             axes[0].errorbar(x=datavector['l'], y=datavector[dkey],
                              yerr=np.sqrt(cov.diagonal()),
@@ -398,9 +402,10 @@ for tech_tag in samples:
     # plot details
     axes[0].set_xscale('log')
     axes[0].set_yscale('log')
-    axes[0].legend(loc='upper left')
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[0].legend(handles[::-1], labels[::-1], loc='upper left')
     axes[0].set_ylabel(r'$C_\ell$')
-    axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (\%)')
+    axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (\%)', fontsize=12)
     axes[-1].set_xlabel(r'$\ell$')
     # save plot
     fname = f'plot_{tech_tag}_cls_comparison.png'
