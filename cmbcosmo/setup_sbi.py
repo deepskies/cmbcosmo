@@ -43,7 +43,9 @@ class setup_sbi(object):
         self.npar = len(param_priors)
         low = [param_priors[i][0] for i in range(self.npar)]
         high = [param_priors[i][1] for i in range(self.npar)]
-        self.prior = utils.BoxUniform(low=low, high=high)
+        self.prior = utils.BoxUniform(low=torch.FloatTensor(low),
+                                      high=torch.FloatTensor(high)
+                                      )
     # ---------------------------------------------
     def simulator(self, params):
         """

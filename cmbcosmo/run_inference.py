@@ -373,8 +373,10 @@ for tech_tag in samples:
     for dind, dkey in enumerate(datavector):
         if dkey != 'l':
             # add datavector
-            axes[0].plot(datavector['l'], datavector[dkey], '.-',
-                         label=f'datavector: {dkey} from {truth_label}'
+            axes[0].errorbar(x=datavector['l'], y=datavector[dkey],
+                             yerr=np.sqrt(cov.diagonal()),
+                             fmt='.-', capsize=2, zorder=-1,
+                             label=f'datavector: {dkey} from {truth_label}; error bars from sample covariance object'
                          )
             # add bestfit
             if dind == len(datavector)-1:
