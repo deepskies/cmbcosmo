@@ -28,6 +28,9 @@ parser.add_option('--restart-mcmc-postburn',
 parser.add_option('--reanalyze-sbi',
                   action='store_true', dest='reanalyze_sbi', default=False,
                   help='use to reanalyze sbi samples (using saved samples).')
+parser.add_option('--no-checks',
+                  action='store_true', dest='no_sbi_checks', default=False,
+                  help='use to not run any sbi checks.')
 parser.add_option('--debug',
                   action='store_true', dest='debug', default=False,
                   help='run everything in debug mode.')
@@ -46,6 +49,7 @@ run_sbi = options.sbi
 restart_mcmc_postburn = options.restart_mcmc_postburn
 restart_mcmc_fromburn = options.restart_mcmc_fromburn
 reanalyze_sbi = options.reanalyze_sbi
+no_sbi_checks = options.no_sbi_checks
 debug = options.debug
 # -----------------------------------------------
 # set up the config
@@ -205,18 +209,19 @@ if run_sbi:
                                            datavector=datavector,
                                            seed=sbi_dict['sampling_seed']
                                            )
-    # predictive checks
-    sbi_setup.run_pred_checks(datavector=datavector,
-                              nsamples=sbi_dict['pc_nsamples'],
-                              datavector_param_dict=datavector_param_dict,
-                              seed=sbi_dict['pc_seed'],
-                              subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
-                            )
-    # sbc
-    sbi_setup.run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
-                                  nsamples=sbi_dict['sbc_nsamples'],
-                                  seed=sbi_dict['sbc_seed']
-                                  )
+    if not no_sbi_checks:
+        # predictive checks
+        sbi_setup.run_pred_checks(datavector=datavector,
+                                nsamples=sbi_dict['pc_nsamples'],
+                                datavector_param_dict=datavector_param_dict,
+                                seed=sbi_dict['pc_seed'],
+                                subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
+                                )
+        # sbc
+        sbi_setup.run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
+                                    nsamples=sbi_dict['sbc_nsamples'],
+                                    seed=sbi_dict['sbc_seed']
+                                    )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
