@@ -7,33 +7,37 @@ import os
 from cmbcosmo.setup_config import setup_config
 from cmbcosmo.theory import theory
 from cmbcosmo.helpers_misc import get_time_passed
+import deepcmbsim as simcmb
+from cmbcosmo.settings import *
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
 parser.add_option('--config-path',
                   dest='config_path',
                   help='path to the (yml) config file.')
+parser.add_option('--debug',
+                  action='store_true', dest='debug', default=False,
+                  help='run everything in debug mode.')
+# mcmc options
 parser.add_option('--mcmc',
                   action='store_true', dest='mcmc', default=False,
                   help='use to run MCMC inference.')
-parser.add_option('--sbi',
-                  action='store_true', dest='sbi', default=False,
-                  help='use to run SBI.')
 parser.add_option('--restart-mcmc-burn',
                   action='store_true', dest='restart_mcmc_fromburn', default=False,
                   help='use to restart mcmc from burnin (using backend).')
 parser.add_option('--restart-mcmc-postburn',
                   action='store_true', dest='restart_mcmc_postburn', default=False,
                   help='use to restart mcmc post-burnin (using backend).')
+# sbi options
+parser.add_option('--sbi',
+                  action='store_true', dest='sbi', default=False,
+                  help='use to run SBI.')
 parser.add_option('--reanalyze-sbi',
                   action='store_true', dest='reanalyze_sbi', default=False,
                   help='use to reanalyze sbi samples (using saved samples).')
 parser.add_option('--no-checks',
                   action='store_true', dest='no_sbi_checks', default=False,
                   help='use to not run any sbi checks.')
-parser.add_option('--debug',
-                  action='store_true', dest='debug', default=False,
-                  help='run everything in debug mode.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -51,6 +55,19 @@ restart_mcmc_fromburn = options.restart_mcmc_fromburn
 reanalyze_sbi = options.reanalyze_sbi
 no_sbi_checks = options.no_sbi_checks
 debug = options.debug
+# deal with imports
+if run_mcmc:
+    import emcee as emcee
+    import shutil
+    from helpers_plots import plot_chainvals
+if run_sbi:
+    from sbi.analysis import pairplot
+    import pickle
+    import torch
+    from tqdm import tqdm
+    from sbi import utils as utils
+    from sbi.inference.base import infer
+    from sbi.analysis import check_sbc, run_sbc, sbc_rank_plot
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
@@ -86,8 +103,10 @@ print(f'## saving data in {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 lmin, lmax = config_data['datavector']['lmin_lmax']
+cls_to_consider = config_data['datavector']['cls_to_consider']
+nells = int(lmax - lmin + 1) * len(cls_to_consider)
 theory = theory(lmin=lmin, lmax=lmax,
-                cls_to_consider=config_data['datavector']['cls_to_consider'],
+                cls_to_consider=cls_to_consider,
                 fsky=config_data['datavector']['fsky'],
                 verbose=False, outdir=datadir,
                 detector_noise=config_data['datavector']['detector_white_noise']
@@ -105,7 +124,6 @@ samples, outdirs = {}, {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
     time0 = time.time()
-    from setup_mcmc import setup_mcmc 
     # pull mcmc related config details
     mcmc_dict = config_data['inference']['mcmc']
     nwalkers = mcmc_dict['nwalkers']
@@ -156,25 +174,118 @@ if run_mcmc:
             raise ValueError(f'## somethings wrong - {len(ind)} starting points outside prior: {starts[:, ind]}\n')
 
     # set up mcmc details - log prior, likelihood, posterior
-    mcmc_setup = setup_mcmc(datavector=datavector,
-                            cov=cov,
-                            param_priors=param_priors,
-                            theory=theory,
-                            outdir=outdir,
-                            param_labels_in_order=params_to_fit
-                            )
-    # set up the sampler, bunrin, post
-    mcmc_setup.run_mcmc(nwalkers=nwalkers,
-                        starts=starts, nsteps_burn=nsteps_burn, nsteps_post=nsteps_chain,
-                        restart_from_burn=restart_mcmc_fromburn,
-                        restart_from_postburn=restart_mcmc_postburn,
-                        progress=True
-                        )
+    covinv = np.linalg.pinv(cov)
+    # ---------------------------------------------
+    def get_loglikelihood(theory_vec):
+        """
+        * theory_vec: arr: theory array (stacked cls) to compare against data
+        """
+        # diff
+        delta = theory_vec - datavector
+        # calculate chi2
+        chi2 = np.linalg.multi_dot([delta, covinv, delta])
+
+        return -0.5 * chi2
+    # ---------------------------------------------
+    def get_logprior(p):
+        """
+        * p: arr: parameter array to consider
+        """
+        good_to_go = True
+        # loop over all params and check to make sure this sample is within the priors
+        i, out = 0, 0
+        while good_to_go is True and i < npar:
+            if param_priors[i][0] <= p[i] < param_priors[i][1]:
+                out += np.log( 1 / (param_priors[i][1] - param_priors[i][0]) )
+            else:
+                good_to_go = False
+            i += 1
+
+        # return out if sample is within prior ranges
+        if good_to_go:
+            return out
+        else:
+            return -np.inf
+    # ---------------------------------------------
+    # set up log-posterior
+    def get_logposterior(p):
+        """
+        * p: arr: parameter array to consider
+        """
+        # check to confirm that this sample is good with the priors
+        logprior = get_logprior(p)
+
+        if not np.isfinite(logprior):
+            # i.e. value outside the prior => unlikely
+            return -np.inf
+
+        param_dict = {}
+        for i, key in enumerate(params_to_fit):
+            param_dict[key] = p[i]
+
+        prediction = theory.get_prediction(param_dict=param_dict)
+        return get_loglikelihood(theory_vec=prediction) + logprior
+    # ---------------------------------------------
+    # now run mcmc
+    # setup sampler backend
+    backend_burnin_fname = f'{outdir}/backend-burnin.h5'
+    backend_fname = f'{outdir}/backend.h5'
+    backend = emcee.backends.HDFBackend(backend_fname)
+    # set up the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                    get_logposterior,
+                                    backend=backend)
+    # figure out where to start from
+    if restart_mcmc_fromburn:
+        # restart from burn
+        print('## resuming burn in ... ')
+        # run the chain; n-steps modified based on how many were completed before
+        pos, _, _ = sampler.run_mcmc(None,
+                                     nsteps_burn - backend.iteration,   progress=True)
+        # save the backend for the burn in
+        shutil.copy(backend_fname, backend_burnin_fname)
+        # now reset the sampler
+        sampler.reset()
+        # run post-burn
+        print('## running the full chain ... ')
+        sampler.run_mcmc(None, nsteps_chain, progress=True)
+    elif restart_mcmc_postburn:
+        # start from postburn
+        print('## resuming the chain postburn ... ')
+        # run the chain; n-steps modified based on how many were completed before
+        sampler.run_mcmc(None, nsteps_chain - backend.iteration, progress=True)
+    else:
+        # start from scratch
+        # ------
+        print('## burning in ... ')
+        # run burn-in
+        pos, _, _ = sampler.run_mcmc(starts, nsteps_burn, progress=True)
+        # ------
+        # save the backend for the burn in
+        shutil.copy(backend_fname, backend_burnin_fname)
+        # now reset the sampler
+        sampler.reset()
+        # run post-burn
+        print('## running the full chain ... ')
+        sampler.run_mcmc(pos, nsteps_chain, progress=True)
+
     # get samples
-    samples['mcmc'] = mcmc_setup.get_samples(flat=True)
+    samples['mcmc'] = sampler.get_chain(flat=True)
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
     # save chainvals
-    mcmc_setup.plot_chainvals(truths=truths, param_labels=param_labels)
+    # first the chain
+    plot_chainvals(chain_unflattened=sampler.get_chain(),
+                    outdir=outdir, npar=npar, nsteps=nsteps_chain,
+                    starts=starts, truths=truths, param_labels=param_labels, filetag='post-burnin')
+    # now the burnin
+    backend_burnin = emcee.backends.HDFBackend(backend_burnin_fname)
+    sampler_burnin = emcee.EnsembleSampler(nwalkers, npar,
+                                           get_logposterior,
+                                           backend=backend_burnin)
+    plot_chainvals(chain_unflattened=sampler_burnin.get_chain(),
+                    outdir=outdir, npar=npar, nsteps=nsteps_chain,
+                    starts=starts, truths=truths, param_labels=param_labels, filetag='burnin')
+    backend, sampler, backend_burnin, sampler_burnin = [], [], [], []
     print('# ----------')
     outdirs['mcmc'] = outdir
 
@@ -194,34 +305,347 @@ if run_sbi:
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving sbi stuff in {outdir}')
 
-    from setup_sbi import setup_sbi
-    # set up sbi
-    sbi_setup = setup_sbi(theory=theory,
-                          param_labels_in_order=params_to_fit,
-                          outdir=outdir
-                          )
     # construct prior
-    sbi_setup.setup_prior(param_priors=param_priors)
+    low = [param_priors[i][0] for i in range(npar)]
+    high = [param_priors[i][1] for i in range(npar)]
+    prior = utils.BoxUniform(low=torch.FloatTensor(low),
+                             high=torch.FloatTensor(high)
+                             )
     # construct posterior
-    sbi_setup.setup_posterior(nsims=nsims, restart=reanalyze_sbi)
+    # ---------------------------------------------
+    # first set up simulator
+    def simulator(params):
+        """
+        * params: arr: arr of params to reproduce the "sim" for
+        """
+        param_dict = {}
+        for i, key in enumerate(params_to_fit):
+            param_dict[key] = params[i]
+
+        return theory.get_prediction(param_dict=param_dict, add_sample_variance=True)
+    # ---------------------------------------------
+    # now set up posterior
+    print('## ---')
+    print(f'## setting up posterior ..')
+    time0 = time.time()
+    fname = f'sbi_posterior_nsims{nsims}.pickle'
+    if reanalyze_sbi:
+        if not os.path.exists(f'{outdir}/{fname}'):
+            raise ValueError(f'cant restart since {fname} not found in {outdir}.')
+        else:
+            # read in
+            print(f'## reading in saved posteriors from {outdir}/{fname}')
+            posterior = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+    else:
+        posterior = infer(simulator=simulator,
+                          prior=prior,
+                          method='SNPE',
+                          num_simulations=nsims,
+                          )
+        # now save the posterior for later
+        pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
+        print(f'## saved posterior as {outdir}/{fname}')
+    print(f'## time taken done. {get_time_passed(time0=time0)}')
+    print('## ---')
     # get samples
-    samples['sbi'] = sbi_setup.get_samples(nsamples=nsamples,
-                                           datavector=datavector,
-                                           seed=sbi_dict['sampling_seed']
-                                           )
+    print(f'## getting samples ..')
+    _ = torch.manual_seed(sbi_dict['sampling_seed'])
+    samples['sbi'] = posterior.sample(sample_shape=(nsamples,),
+                                      x=datavector
+                                      ).cpu().detach().numpy()
+
     if not no_sbi_checks:
-        # predictive checks
-        sbi_setup.run_pred_checks(datavector=datavector,
-                                nsamples=sbi_dict['pc_nsamples'],
-                                datavector_param_dict=datavector_param_dict,
-                                seed=sbi_dict['pc_seed'],
-                                subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
-                                )
-        # sbc
-        sbi_setup.run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
-                                    nsamples=sbi_dict['sbc_nsamples'],
-                                    seed=sbi_dict['sbc_seed']
+        # ---------------------------------------------
+        def _pred_check_helper(samples, samples_tag, datavector, datavector_param_dict,
+                               subset_inds_to_plot, additional_tag=None
+                               ):
+            """
+            helper function to deal with the various plots for the
+            predictive checks.
+
+            note: have checked this code only with 1spectrum so will
+            throw an error if trying to run it with >1 spectrum since
+            that functionality is untested.
+
+            * samples: arr: array of samples from either the posterior
+                            or prior.
+            * samples_tag: str: tag for the samples: 'prior', 'posterior'
+            * datavector: arr: datavector to compare against
+            * datavector_param_dict: dict: dictionary used to generate datavector.
+            * subset_inds_to_plot: arr: indices to consider when plotting the cls
+                                        in the pairplot; more than 10 is likely
+                                        not a good idea. Could be None but beware
+                                        of runtime associated with plotting an
+                                        impossibly large plot.
+            * additional_tag: str: any additional tags to be added to the outfiles'
+                                name. Default: None
+            """
+            # check to ensure that we're working with just one spectrum.
+            if len(cls_to_consider) > 1:
+                err = '## dont have the functionality to run this for more than 1spec:'
+                err += f' got: {len(cls_to_consider)}'
+                raise ValueError(err)
+
+            if additional_tag is None: additional_tag = ''
+            else: additional_tag = f'_{additional_tag}'
+            nsamples = len(samples)
+            # pairplot to check what samples were drawn for PPC
+            _, axes = pairplot(samples=samples,
+                               offdiag=["kde"],
+                               diag=["kde"],
+                               labels=params_to_fit,
+                               figsize=(npar * 2, npar * 2),
+                               )
+            # add lines for true params
+            for ind, par in enumerate(params_to_fit):
+                axes[ind, ind].axvline(x=datavector_param_dict[par],
+                                    color='k', ls='--', lw=2)
+            # title
+            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
+            # save fig
+            fname = f'plot_{samples_tag}-pred-check_samples{additional_tag}.png'
+            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+            print('## saved %s' % fname )
+            plt.close()
+
+            # now generate data
+            print(f'## starting data generation using the {samples_tag} samples ...')
+            x_pp = []
+            for pars in tqdm(samples.tolist()):
+                dict_ = { f: pars[i] for i, f in enumerate(params_to_fit) }
+                x_pp.append(theory.get_prediction(dict_))
+
+            # get ells
+            ells, _, _ = theory.get_prediction(dict_, return_ell_keys_too=True)
+
+            # lets extract the subset if specified for the pairplot
+            print(f'## extracting subset as needed ..')
+            if subset_inds_to_plot is not None:
+                x_pp_subset = []
+                for nth in range(len(x_pp)):
+                    x_pp_subset.append(x_pp[nth][subset_inds_to_plot])
+            else:
+                x_pp_subset = x_pp
+                subset_inds_to_plot = len(x_pp[0])
+
+            ninds = len(subset_inds_to_plot)
+            print(f'## working on the pairplot ...')
+            x_pp_subset = np.array(x_pp_subset)
+            # plot xpp vs observed data
+            _, axes = pairplot(samples=np.log(x_pp_subset),
+                            points=np.log(datavector.reshape(1,-1)[0]),
+                            points_colors="red",
+                            upper="scatter",
+                            scatter_offdiag=dict(marker="."), #, s=5),
+                            points_offdiag=dict(marker="+"), #markersize=15),
+                            labels=[r"log($C_{%s}$)" % ells[d] for d in subset_inds_to_plot],
+                            figsize=(ninds * 2, ninds * 2),
+                            )
+            # lets set up the limits to ensure we see everything
+            # first min, max from the sampples
+            min_, max_ = np.min(np.log(x_pp_subset)), np.max(np.log(x_pp_subset))
+            # now loop in datavector
+            min_ = min([min_, np.min(np.log(datavector))])
+            max_ = min([max_, np.max(np.log(datavector))])
+            # now implement
+            for nrow in range(len(axes)):
+                for ncol in range(len(axes)):
+                    # diagonal is a count histogram => update xlims
+                    if nrow == ncol:
+                        axes[nrow, ncol].set_xlim([min_, max_])
+                    # upper diagonal subplots need both lims updated
+                    if nrow < ncol:
+                        axes[nrow, ncol].set_ylim([min_, max_])
+                        axes[nrow, ncol].set_xlim([min_, max_])
+            # title
+            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
+            # save plot
+            fname = f'plot_{samples_tag}-pred-check-{ninds}ells{additional_tag}.png'
+            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+            print('## saved %s' % fname )
+            plt.close()
+
+            # lets plot of the spectra - this piece should work for >1 spectra type
+            print(f'## working on the spectra plot ...')
+            # plot
+            plt.clf()
+            nrows = len(cls_to_consider)
+            _, axes = plt.subplots(nrows, 1,)
+            plt.subplots_adjust(hspace=0.5)
+            for j in range(len(cls_to_consider)):
+                if nrows == 1:
+                    ax = axes
+                else:
+                    ax = axes[j]
+                # loop over the drawn samples
+                for i in range(len(x_pp)):
+                    ax.loglog(ells, x_pp[i][nells*j:nells*(j+1)], '.-', color='C0', alpha=0.5)
+                # plot the data vector
+                ax.loglog(ells, datavector[nells*j:nells*(j+1)], 'r.-', lw=0.75)
+                # plot the subset for a correspondence with the pairplot
+                ax.loglog(ells[subset_inds_to_plot], datavector[subset_inds_to_plot], 'kP', lw=1.5)
+                # set title
+                ax.set_title(cls_to_consider[j])
+            # plot details
+            if nrows == 1:
+                axes.set_ylabel(r'$C_\ell$')
+                axes.set_xlabel(r'$\ell$')
+            else:
+                axes[1].set_ylabel(r'$C_\ell$')
+                axes[-1].set_xlabel(r'$\ell$')
+            # title
+            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
+            # save plot
+            fname = f'plot_{samples_tag}-pred-check_datavector-vs-prediction{additional_tag}.png'
+            plt.savefig(f'{outdir}/{fname}',
+                        bbox_inches='tight', format='png')
+            print('## saved %s' % fname)
+            plt.close()
+
+        # ---------------------------------------------
+        def run_pred_checks(datavector, nsamples,
+                            datavector_param_dict, seed,
+                            subset_inds_to_plot
+                            ):
+            """
+            run both prior and posterior predictive checks.
+
+            * datavector: arr: stacked cls
+            * nsamples: int: nsamples to draw from prior/posterior for PPC
+            * datavector_param_dict: dict: cosmo dict used for datavector
+            * seed: int: seed to be used for generating samples
+            * subset_inds_to_plot: arr: indices to consider when plotting the cls
+                                        in the pairport; more than 10 is likely not a good idea.
+
+            """
+            print('## ---')
+            print(f'## running predictive checks with {nsamples} samples to be drawn ..')
+            time0 = time.time()
+            seed_tag = f'seed{seed}forsampling'
+            # run things for the prior
+            print(f'\n## running prior predictive check ..')
+            # set the seed
+            _ = torch.manual_seed(seed)
+            # draw samples
+            samples = prior.sample(sample_shape=(nsamples,),)
+            # run helper
+            _pred_check_helper(samples=samples, samples_tag='prior',
+                                    datavector=datavector, datavector_param_dict=datavector_param_dict,
+                                    subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
                                     )
+            print(f'## done with the prior predictive check. time taken: {(time.time() - time0) / 60: .2f} min')
+
+            # now run things for the posterior
+            print(f'\n## running posterior predictive check ..')
+            _ = torch.manual_seed(seed)
+            # draw samples
+            samples = posterior.sample(sample_shape=(nsamples,),
+                                            x=datavector
+                                            )
+            # run helper
+            _pred_check_helper(samples=samples, samples_tag='posterior',
+                               datavector=datavector, datavector_param_dict=datavector_param_dict,
+                               subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
+                               )
+            # time passed
+            print(f'## all done. {get_time_passed(time0=time0)}')
+            print('## ---')
+        # ---------------------------------------------
+        def run_sim_based_check(nsbc_runs, nsamples, seed):
+            """
+            run simulation based check
+
+            * nsbc_runs: int: number of runs for SBC
+                            from documentation: should be ~100s or ideally 1000
+            * nsamples: int: nsamples to draw from the posterior
+            * seed: int: seed to be used for generating samples
+            """
+            print('## ---')
+            print(f'## running simulation based check ..')
+            time0 = time.time()
+
+            # generate ground truth parameters and corresponding simulated observations
+            # set seed
+            _ = torch.manual_seed(seed)
+            # sample from prior params for SBC
+            thetas = prior.sample((nsbc_runs,))
+            # now simulate "obervations"
+            print(f'## simulating observations ..')
+            xs = []
+            for theta_o in tqdm(thetas.numpy()):
+                xs.append(
+                    theory.get_prediction(
+                        param_dict={
+                            params_to_fit[i]: val for i,val in enumerate(np.array(theta_o))
+                            }
+                        )
+                    )
+            xs = torch.FloatTensor(xs)
+            # run sbc now
+            print(f'## running run_sbc ..')
+            ranks, dap_samples = run_sbc(thetas, xs, posterior, num_posterior_samples=nsamples)
+            print(f'## running check_sbc ..')
+            check_stats = check_sbc(ranks, thetas, dap_samples, num_posterior_samples=nsamples)
+
+            # ------------------------------
+            # set up plots
+            print(f'## working on plots ..')
+            # title
+            title = f"ks_pvals = {check_stats['ks_pvals'].numpy()} ;\n"
+            title += f"c2st_ranks = {check_stats['c2st_ranks'].numpy()} ; "
+            title += f"c2st_dap = {check_stats['c2st_dap'].numpy()}"
+            # sbc params tag
+            tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples_{seed}seed'
+
+            # figure out nbins
+            if nsbc_runs/20 < 1:
+                num_bins = 10
+            else:
+                num_bins = None
+            print(f'num_bins = {num_bins}')
+            # rank plot
+            f, _ = sbc_rank_plot(ranks=ranks,
+                                num_posterior_samples=nsamples,
+                                plot_type="hist",
+                                num_bins=num_bins,
+                                figsize=((npar*5, 5))
+                                )
+            # add title
+            f.suptitle(title)
+            # save fig
+            fname = f'plot_sbc_rank-plot_{tag}.png'
+            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+            print('## saved %s' % fname )
+            plt.close()
+
+            # cdf plot
+            f, _ = sbc_rank_plot(ranks, nsamples, plot_type="cdf",
+                                num_bins=num_bins, figsize=((8, 5))
+                                )
+            # add title
+            f.suptitle(title)
+            # save fig
+            fname = f'plot_sbc_cdf_{tag}.png'
+            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+            print('## saved %s' % fname )
+            plt.close()
+
+            # time passed:
+            print(f'## all done. time taken: {get_time_passed(time0=time0)}')
+            print('## ---')
+
+        # run the predictive checks
+        run_pred_checks(datavector=datavector,
+                        nsamples=sbi_dict['pc_nsamples'],
+                        datavector_param_dict=datavector_param_dict,
+                        seed=sbi_dict['pc_seed'],
+                        subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
+                        )
+        # sbc
+        run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
+                            nsamples=sbi_dict['sbc_nsamples'],
+                            seed=sbi_dict['sbc_seed']
+                            )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
