@@ -103,18 +103,21 @@ print(f'## saving data in {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 lmin, lmax = config_data['datavector']['lmin_lmax']
-cls_to_consider = config_data['datavector']['cls_to_consider']
+cls_to_consider = ['BB']
 nells = int(lmax - lmin + 1) * len(cls_to_consider)
 theory = theory(lmin=lmin, lmax=lmax,
-                cls_to_consider=cls_to_consider,
                 fsky=config_data['datavector']['fsky'],
-                verbose=False, outdir=datadir,
-                detector_noise=config_data['datavector']['detector_white_noise']
+                outdir=datadir,
+                camb_params=config_data['datavector']['camb_params'],
+                base_params=datavector_param_dict
                 )
 datavector = theory.get_prediction(param_dict=datavector_param_dict,
+                                   add_sample_variance=False,
                                    plot_things=True, plot_tag='data')
+# set up ells
+ells = np.arange(lmin, lmax+1)
 # add a tag for the datavector
-datatag = f'lmin{lmin}_lmax{lmax}_{len(config_data["datavector"]["cls_to_consider"])}spectra'
+datatag = f'lmin{lmin}_lmax{lmax}_{len(cls_to_consider)}spectra'
 # setup the covariance - used in mcmc and chi2 numbers in the final plots
 cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
                      plot_things=True, plot_tag='')
@@ -223,7 +226,8 @@ if run_mcmc:
         for i, key in enumerate(params_to_fit):
             param_dict[key] = p[i]
 
-        prediction = theory.get_prediction(param_dict=param_dict)
+        prediction = theory.get_prediction(param_dict=param_dict,
+                                           add_sample_variance=False)
         return get_loglikelihood(theory_vec=prediction) + logprior
     # ---------------------------------------------
     # now run mcmc
@@ -305,6 +309,9 @@ if run_sbi:
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving sbi stuff in {outdir}')
 
+    # extra the cov diagonal for the sample variance
+    sigma_sample_variance = np.sqrt(cov.diagonal())
+
     # construct prior
     low = [param_priors[i][0] for i in range(npar)]
     high = [param_priors[i][1] for i in range(npar)]
@@ -322,7 +329,9 @@ if run_sbi:
         for i, key in enumerate(params_to_fit):
             param_dict[key] = params[i]
 
-        return theory.get_prediction(param_dict=param_dict, add_sample_variance=True)
+        return theory.get_prediction(param_dict=param_dict,
+                                     add_sample_variance=True,
+                                     sigma_to_use=sigma_sample_variance)
     # ---------------------------------------------
     # now set up posterior
     print('## ---')
@@ -413,10 +422,8 @@ if run_sbi:
             x_pp = []
             for pars in tqdm(samples.tolist()):
                 dict_ = { f: pars[i] for i, f in enumerate(params_to_fit) }
-                x_pp.append(theory.get_prediction(dict_))
-
-            # get ells
-            ells, _, _ = theory.get_prediction(dict_, return_ell_keys_too=True)
+                x_pp.append(theory.get_prediction(dict_, add_sample_variance=True,
+                                                  sigma_to_use=sigma_sample_variance))
 
             # lets extract the subset if specified for the pairplot
             print(f'## extracting subset as needed ..')
@@ -577,7 +584,9 @@ if run_sbi:
                     theory.get_prediction(
                         param_dict={
                             params_to_fit[i]: val for i,val in enumerate(np.array(theta_o))
-                            }
+                            },
+                        add_sample_variance=True,
+                        sigma_to_use=sigma_sample_variance
                         )
                     )
             xs = torch.FloatTensor(xs)
@@ -677,7 +686,8 @@ for tech_tag in samples:
     # set up the chi2
     # first need to get the cls (stacked)
     datavector = theory.get_prediction(param_dict=datavector_param_dict,
-                                       plot_things=False)
+                                       add_sample_variance=False
+                                       )
     bestfit_dict = {key: bestfit[i] for i,key in enumerate(params_to_fit)}
     bestfit_lower_dict = {key: bestfit[i]-bestfit_low[i] for i,key in enumerate(params_to_fit)}
     bestfit_upper_dict = {key: bestfit[i]+bestfit_upp[i] for i,key in enumerate(params_to_fit)}
@@ -690,7 +700,8 @@ for tech_tag in samples:
             bestfit_lower_dict[key] = datavector_param_dict[key]
             bestfit_upper_dict[key] = datavector_param_dict[key]
     bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
-                                          plot_things=False)
+                                          add_sample_variance=False
+                                          )
     # diff
     delta = datavector - bestfitvector
     # calculate chi2
@@ -755,19 +766,18 @@ for tech_tag in samples:
         print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
 
     # bestfit cls - and relative residuals
-    # need dictionaries (same as flatted for 1spec ..)
     datavector = theory.get_prediction(param_dict=datavector_param_dict,
-                                       plot_things=False,
-                                       return_unflat=True)
+                                       add_sample_variance=False
+                                       )
     bestfitvector = theory.get_prediction(param_dict=bestfit_dict,
-                                          plot_things=False,
-                                          return_unflat=True)
+                                          add_sample_variance=False
+                                          )
     bestfit_lower_vector = theory.get_prediction(param_dict=bestfit_lower_dict,
-                                                 plot_things=False,
-                                                 return_unflat=True)
+                                                 add_sample_variance=False
+                                                 )
     bestfit_upper_vector = theory.get_prediction(param_dict=bestfit_upper_dict,
-                                                 plot_things=False,
-                                                 return_unflat=True)
+                                                 add_sample_variance=False
+                                                 )
     # set up the labels
     # truth label
     truth_label = ''
@@ -790,46 +800,30 @@ for tech_tag in samples:
     # finalize
     bestfit_label = r'\{%s\}' % bestfit_label[:-2]
 
-    from cmbcosmo.settings import *
     plt.clf()
     fig, axes = plt.subplots(2,1, sharex=True, height_ratios=[2,1])
     plt.subplots_adjust(hspace=0)
-    for dind, dkey in enumerate(datavector):
-        if dkey != 'l':
-            if dkey.__contains__('cl'):
-                label = r'$C_{\ell,%s}$' % (dkey.split('cl')[-1])
-            else:
-                label = dkey
-            # add datavector
-            axes[0].errorbar(x=datavector['l'], y=datavector[dkey],
-                             yerr=np.sqrt(cov.diagonal()),
-                             fmt='.-', capsize=2, zorder=-1,
-                             label=f'datavector: {dkey} from {truth_label}; error bars from sample covariance object'
-                         )
-            # add bestfit
-            if dind == len(datavector)-1:
-                label = r'bestfit: %s; %s' % (bestfit_label, title)
-            else:
-                label = None
-            axes[0].plot(bestfitvector['l'], bestfitvector[dkey], 'k.-', label=label)
-            axes[0].fill_between(bestfitvector['l'],
-                                 bestfit_lower_vector[dkey],
-                                 bestfit_upper_vector[dkey], color='k', alpha=0.1)
-            # add relative residuals
-            axes[1].plot(datavector['l'],
-                         100 * (bestfitvector[dkey] - datavector[dkey]) / datavector[dkey],
-                         'k.-', label=dkey)
-            axes[1].fill_between(bestfitvector['l'],
-                                 100 * (bestfit_lower_vector[dkey] - datavector[dkey]) / datavector[dkey],
-                                100 *  (bestfit_upper_vector[dkey] - datavector[dkey]) / datavector[dkey],
-                                color='k', alpha=0.1)
+    # add datavector
+    axes[0].errorbar(x=ells, y=datavector,
+                     yerr=np.sqrt(cov.diagonal()),
+                     fmt='.-', capsize=2, zorder=-1,
+                     label=f'datavector: from {truth_label}; error bars from sample covariance object'
+                    )
+    label = r'bestfit: %s; %s' % (bestfit_label, title)
+    axes[0].plot(ells, bestfitvector, 'k.-', label=label)
+    axes[0].fill_between(ells,  bestfit_lower_vector, bestfit_upper_vector, color='k', alpha=0.1)
+    # add relative residuals
+    axes[1].plot(ells, 100 * (bestfitvector - datavector) / datavector, 'k.-')
+    axes[1].fill_between(ells,  100 * (bestfit_lower_vector - datavector) / datavector,
+                        100 *  (bestfit_upper_vector - datavector) / datavector,
+                        color='k', alpha=0.1)
     # plot details
     axes[0].set_xscale('log')
     axes[0].set_yscale('log')
     handles, labels = axes[0].get_legend_handles_labels()
     axes[0].legend(handles[::-1], labels[::-1], loc='upper left')
-    axes[0].set_ylabel(r'$C_\ell$')
-    axes[1].set_ylabel(r'[$C_\ell^{bestfit}/C_\ell^{data}-1$] (\%)', fontsize=12)
+    axes[0].set_ylabel(r'$C_{\ell,BB}$')
+    axes[1].set_ylabel(r'[$C_{\ell,BB}^{bestfit}/C_{\ell,BB}^{data}-1$] (\%)', fontsize=12)
     axes[-1].set_xlabel(r'$\ell$')
     # save plot
     fname = f'plot_{tech_tag}_cls_comparison.png'

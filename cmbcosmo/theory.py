@@ -1,9 +1,9 @@
-import deepcmbsim as simcmb
+import camb
 from cmbcosmo.helpers_misc import flatten_data
 from cmbcosmo.settings import *
 import numpy as np
 from scipy.stats import norm
-
+import os
 # get theory predictions
 class theory(object):
     """
@@ -12,17 +12,16 @@ class theory(object):
 
     """
     # ---------------------------------------------
-    def __init__(self, lmin, lmax,
-                 cls_to_consider=['clTT', 'clEE', 'clBB', 'clEB'],
-                 fsky=1.0,
-                 verbose=False, outdir=None,
-                 detector_noise=True
+    def __init__(self, lmin, lmax, camb_params, base_params,
+                 fsky=1.0, outdir=None,
                  ):
         """
         Required inputs
         ----------------
         * lmin: int: min ell
         * lmax: int: max ell
+        * camb_params: dict: dictionary for camb
+        * base_params: dict: base params for r, alens
 
         Optional inputs
         ----------------
@@ -38,38 +37,22 @@ class theory(object):
                                 signal. Default: True.
         
         """
-        # set up the keys we want
-        self.keys_of_interest = cls_to_consider
-        # load the default config in deepcmbsim and udpate some things
-        self.config_obj = simcmb.config_obj()
-        print(f'simcmb initial config: {self.config_obj.UserParams}\n')
-        # address lmin
-        self.config_obj.update_val('lmin', lmin)
+        # store things
         self.lmin = lmin
-        # address lmax
-        self.config_obj.update_val('max_l_use', lmax)
         self.lmax = lmax
-        # address fsky
         self.fsky = fsky
-        # address verbose
-        self.verbose = verbose
-        self.config_obj.update_val('verbose', int(self.verbose))
-        # specify which cls to get
-        self.config_obj.update_val('cls_to_output', self.keys_of_interest)
-        # now add detector noise
-        if detector_noise:
-            self.config_obj.update_val('noise_type', 'detector-white')
-        # set up the outdir
+        self.camb_params = camb_params
+        self.base_params = base_params
         self.outdir = outdir
         # set up the datatag (to be appended to output fileames)
-        self.data_tag = f'lmax{lmax}_{len(self.keys_of_interest)}spectra'
-        # nells - to be set once the cls are created
-        self.nells = None
+        self.data_tag = f'lmin{lmin}_lmax{lmax}_1spectra'
+        # nells
+        self.nells = int(lmax - lmin + 1)
 
     # ---------------------------------------------
-    def get_prediction(self, param_dict, add_sample_variance=False,
-                       plot_things=False, plot_tag='',
-                       return_unflat=False, return_ell_keys_too=False):
+    def get_prediction(self, param_dict, add_sample_variance,
+                       sigma_to_use=None,
+                       plot_things=False, plot_tag=''):
         """
         Required inputs
         ----------------
@@ -77,12 +60,14 @@ class theory(object):
                             options: 'r', 'Alens'. having other keys
                             won't throw an error but the values
                             won't be used.
+        * add_sample_variance: bool: set to True to add sample variance
+                                     to the prediction.
 
         Optional inputs
         ---------------
-        * add_sample_variance: bool: set to True to add sample variance
-                                     to the prediction.
-                                     Default: False
+        * sigma_to_use: list: sigma to add to add sample variance to cls.
+                              if None, will use cls generated from param_dict.
+                              Default: None
         * plot_things: bool: set to True to plot the spectra.
                              Default: False
         * plot_tag: str: tag to add to the saved plot fname.
@@ -98,58 +83,44 @@ class theory(object):
         -------
         * cls: array: stacked spectra unless return_unflat is True
                       or return_ell_keys_too is True.
-
         """
+        # set up camb
+        pars = camb.set_params(**self.camb_params)
+        pars.Alens = self.base_params['Alens']
+        pars.InitPower.r = self.base_params['r']
+        pars.WantTensors = True
+        pars.set_for_lmax(self.lmax, lens_potential_accuracy=1)
+        # now loop in input params
         if 'r' in param_dict:
-            self.config_obj.update_val('InitPower.r', param_dict['r'], verbose=self.verbose)
+            pars.Alens = param_dict['Alens']
         if 'Alens' in param_dict:
-            self.config_obj.update_val('Alens', param_dict['Alens'], verbose=self.verbose)
-        data = simcmb.CAMBPowerSpectrum(self.config_obj).get_cls()
+            pars.InitPower.r = param_dict['r']
+        # now get the results
+        results = camb.get_results(pars)
+        # extract BB
+        cls = results.get_cmb_power_spectra(pars, CMB_unit='muK', spectra=['total'])['total'][self.lmin:self.lmax+1,2]
+        # set up ells based on lmin, lmax
+        ells = np.arange(self.lmin, self.lmax+1)
 
-        data_flat = flatten_data(data_dict=data, ignore_keys=['l'])
         # now add sample variance, if applicable
-        # its more complicated to with work a dictionary instead of a flat array so make that a requirement
         if add_sample_variance:
-            if return_unflat:
-                raise ValueError(f'add_sample_variance only works when returning flattened data.')
             # first check if the sigma from the sample variance is available
-            if not hasattr(self, 'sigma_sample_var'):
-                self.sigma_sample_var = np.sqrt( data_flat**2 * (2 / (self.fsky * (2 * data['l'] + 1))) )
+            if sigma_to_use is None:
+                # calculate
+                sigma_sample_var = np.sqrt( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
+            else:
+                sigma_sample_var = sigma_to_use
             # now add random pick from a normal distribution with sigma being the sigma from sample variance
-            mean = np.zeros_like(data_flat)
-            data_flat += norm.rvs(loc=mean,
-                                  scale=self.sigma_sample_var ,
-                                  size=len(mean)
-                                  )
-        # --
-        # misc bookkeeping stuff
-        # nells
-        nells = len(data[list(data.keys())[0]])
-        if self.nells is None:
-            self.nells = nells
-        else:
-            if nells != self.nells:
-                raise ValueError('somethings weird - dealing with nells = {nells} vs {self.nells} from before')
-        # update data tag if not all keys of interest are a
-        if self.keys_of_interest + ['l'] != list(data.keys()):
-            self.data_tag = f'lmin{self.lmin}_lmax{self.lmax}_{len(data.keys())-1}spectra'
-        # --
-        # see if need to plot things
+            mean = np.zeros_like(cls)
+            cls += norm.rvs(loc=mean,
+                            scale=sigma_sample_var,
+                            size=len(mean)
+                            )
         if plot_things:
-            if self.outdir is None:
-                raise ValueError('outdir much be set for plotting things.')
             plt.clf()
-            for key in data:
-                if key.__contains__('cl'):
-                    print(key)
-                    label = r'$C_{\ell,%s}$' % (key.split('cl')[-1])
-                else:
-                    label = key
-                if key != 'l':
-                    plt.loglog(data['l'], data[key], '.-', label=label)
-            plt.legend()
+            plt.loglog(ells, cls, '.-')
             plt.xlabel(r'$\ell$')
-            plt.ylabel(r'$C_\ell$')
+            plt.ylabel(r'$C_{\ell,BB}$')
             if add_sample_variance:
                 plt.title('WITH sample variance added to cls')
             if plot_tag != '':
@@ -160,14 +131,7 @@ class theory(object):
             print('# saved %s' % fname)
             plt.close()
 
-        if return_unflat:
-            return data
-        else:
-            if return_ell_keys_too:
-                # return: ells, flattened data without ells, keys flattened
-                return  data['l'], data_flat, [f for f in data.keys() if f != 'l']
-            else:
-                return data_flat
+        return cls
 
     # ---------------------------------------------
     def get_cov(self, param_dict, plot_things=False, plot_tag=''):
@@ -192,8 +156,6 @@ class theory(object):
         * cov: 2D array: covariance matrix (based on sample variance)
 
         """
-        import os
-        import numpy as np
         # set up the filename
         param_tag = str(param_dict)[1:][:-1].replace(':', '').replace("'", "").replace(" ", "").replace(',', '_')
         fname = f'{self.outdir}/cov_{self.data_tag}_{param_tag}.npz'
@@ -203,25 +165,22 @@ class theory(object):
             print(f'## reading cov from {fname} .. ')
             cov = np.load(fname)['cov']
         else:
+            # set up ls
+            ells = np.arange(self.lmin, self.lmax+1)
             # set up the cov
-            ells, data, keys = self.get_prediction(param_dict=param_dict, return_ell_keys_too=True)
+            cls = self.get_prediction(param_dict=param_dict, add_sample_variance=True, sigma_to_use=None)
             # now set up the (diagonal) covariance with sample variance
-            # first need the ell-array for all the spectra
-            larr = np.hstack([ells] * len(keys))
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
-            cov = np.diag( data**2 * (2 / (self.fsky * (2 * larr + 1))) )
-            # lets also store this for other use
-            if not hasattr(self, 'sigma_sample_var'):
-                self.sigma_sample_var = np.sqrt(cov.diagonal())
+            cov = np.diag( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
             # save data
-            np.savez_compressed(fname, cov=cov, keys=keys, ells=ells)
+            np.savez_compressed(fname, cov=cov, ells=ells)
             print(f'## saved cov in {fname}')
             # plot if specified
             if plot_things:
                 from matplotlib.ticker import FormatStrFormatter
                 # set up the delta to deal with lmin
                 delta_l = self.lmax - self.lmin + 1
-                min_, max_ = self.lmin, self.lmin+delta_l*len(keys)
+                min_, max_ = self.lmin, self.lmin+delta_l
                 # now plot
                 plt.clf()
                 plt.imshow(cov, vmin=-1e-10, vmax=1e-10,
@@ -237,14 +196,9 @@ class theory(object):
                 ax.tick_params(axis='both', labelsize=18, which='minor')
                 ax.tick_params(axis='both', pad=2, which='minor')
                 # tick labels
-                labels = []
-                for label in keys:
-                    if label.__contains__('cl'):
-                        print(label)
-                        label = r'$C_{\ell,%s}$' % (label.split('cl')[-1])
-                    labels.append(label)
-                ax.set_xticklabels(labels, minor=True) #rotation=90)
-                ax.set_yticklabels(labels, minor=True) #rotation=90)
+                label = [r'$C_{\ell,BB}$']
+                ax.set_xticklabels(label, minor=True) #rotation=90)
+                ax.set_yticklabels(label, minor=True) #rotation=90)
                 # major ticks
                 ticks_major = np.arange(min_, max_+1, delta_l)
                 ax.set_xticks(ticks_major, minor=False)
