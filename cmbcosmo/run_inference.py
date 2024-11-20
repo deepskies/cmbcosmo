@@ -384,6 +384,10 @@ if run_sbi:
                                       ).cpu().detach().numpy()
 
     if not no_sbi_checks:
+        def helper_ppc(sample):
+                return theory.get_prediction(param_dict={f: sample[i] for i, f in enumerate(params_to_fit)},
+                                             add_sample_variance=True, sigma_to_use=sigma_sample_variance
+                                            )
         # ---------------------------------------------
         def _pred_check_helper(samples, samples_tag, datavector, datavector_param_dict,
                                subset_inds_to_plot, additional_tag=None
@@ -439,11 +443,12 @@ if run_sbi:
 
             # now generate data
             print(f'## starting data generation using the {samples_tag} samples ...')
-            x_pp = []
-            for pars in tqdm(samples.tolist()):
-                dict_ = { f: pars[i] for i, f in enumerate(params_to_fit) }
-                x_pp.append(theory.get_prediction(dict_, add_sample_variance=True,
-                                                  sigma_to_use=sigma_sample_variance))
+            # lets parallelize
+            samples_ = samples.tolist()
+            x_pp = list(tqdm(Pool().imap(helper_ppc, samples_),
+                             total=len(samples_)
+                            )
+                        )
 
             # lets extract the subset if specified for the pairplot
             print(f'## extracting subset as needed ..')
@@ -578,6 +583,13 @@ if run_sbi:
             print(f'## all done. {get_time_passed(time0=time0)}')
             print('## ---')
         # ---------------------------------------------
+        # helper for parallelizing sbc sample set up
+        def helper_sbc(theta):
+            return theory.get_prediction(param_dict={params_to_fit[i]: val for i,val in enumerate(np.array(theta))},
+                                         add_sample_variance=True,
+                                         sigma_to_use=sigma_sample_variance
+                                        )
+        # ---------------------------------------------
         def run_sim_based_check(nsbc_runs, nsamples, seed):
             """
             run simulation based check
@@ -598,18 +610,11 @@ if run_sbi:
             thetas = prior.sample((nsbc_runs,))
             # now simulate "obervations"
             print(f'## simulating observations ..')
-            xs = []
-            for theta_o in tqdm(thetas.numpy()):
-                xs.append(
-                    theory.get_prediction(
-                        param_dict={
-                            params_to_fit[i]: val for i,val in enumerate(np.array(theta_o))
-                            },
-                        add_sample_variance=True,
-                        sigma_to_use=sigma_sample_variance
-                        )
-                    )
-            xs = torch.FloatTensor(xs)
+            xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc, thetas.numpy()),
+                                             total=len( thetas.numpy())
+                                            )
+                                        )
+                                    )
             # run sbc now
             print(f'## running run_sbc ..')
             ranks, dap_samples = run_sbc(thetas, xs, posterior, num_posterior_samples=nsamples)
