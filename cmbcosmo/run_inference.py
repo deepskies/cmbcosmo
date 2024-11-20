@@ -9,6 +9,8 @@ from cmbcosmo.theory import theory
 from cmbcosmo.helpers_misc import get_time_passed
 import deepcmbsim as simcmb
 from cmbcosmo.settings import *
+from multiprocessing import Pool
+from tqdm import tqdm
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
@@ -64,7 +66,6 @@ if run_sbi:
     from sbi.analysis import pairplot
     import pickle
     import torch
-    from tqdm import tqdm
     from sbi import utils as utils
     from sbi.inference.base import infer
     from sbi.analysis import check_sbc, run_sbc, sbc_rank_plot
@@ -235,43 +236,62 @@ if run_mcmc:
     backend_burnin_fname = f'{outdir}/backend-burnin.h5'
     backend_fname = f'{outdir}/backend.h5'
     backend = emcee.backends.HDFBackend(backend_fname)
-    # set up the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, npar,
-                                    get_logposterior,
-                                    backend=backend)
     # figure out where to start from
     if restart_mcmc_fromburn:
         # restart from burn
         print('## resuming burn in ... ')
-        # run the chain; n-steps modified based on how many were completed before
-        pos, _, _ = sampler.run_mcmc(None,
-                                     nsteps_burn - backend.iteration,   progress=True)
-        # save the backend for the burn in
-        shutil.copy(backend_fname, backend_burnin_fname)
-        # now reset the sampler
-        sampler.reset()
-        # run post-burn
-        print('## running the full chain ... ')
-        sampler.run_mcmc(None, nsteps_chain, progress=True)
+        with Pool() as pool:
+            # set up the sampler
+            sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                            get_logposterior,
+                                            backend=backend,
+                                            pool=pool
+                                            )
+            # run the chain; n-steps modified based on how many were completed before
+            pos, _, _ = sampler.run_mcmc(None,
+                                        nsteps_burn - backend.iteration,
+                                        progress=True
+                                        )
+            # save the backend for the burn in
+            shutil.copy(backend_fname, backend_burnin_fname)
+            # now reset the sampler
+            sampler.reset()
+            # run post-burn
+            print('## running the full chain ... ')
+            sampler.run_mcmc(None, nsteps_chain, progress=True)
     elif restart_mcmc_postburn:
         # start from postburn
         print('## resuming the chain postburn ... ')
-        # run the chain; n-steps modified based on how many were completed before
-        sampler.run_mcmc(None, nsteps_chain - backend.iteration, progress=True)
+        with Pool() as pool:
+            # set up the sampler
+            sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                            get_logposterior,
+                                            backend=backend,
+                                            pool=pool
+                                            )
+            # run the chain; n-steps modified based on how many were completed before
+            sampler.run_mcmc(None, nsteps_chain - backend.iteration, progress=True)
     else:
         # start from scratch
-        # ------
-        print('## burning in ... ')
-        # run burn-in
-        pos, _, _ = sampler.run_mcmc(starts, nsteps_burn, progress=True)
-        # ------
-        # save the backend for the burn in
-        shutil.copy(backend_fname, backend_burnin_fname)
-        # now reset the sampler
-        sampler.reset()
-        # run post-burn
-        print('## running the full chain ... ')
-        sampler.run_mcmc(pos, nsteps_chain, progress=True)
+        with Pool() as pool:
+            # set up the sampler
+            sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                            get_logposterior,
+                                            backend=backend,
+                                            pool=pool
+                                            )
+            # ------
+            print('## burning in ... ')
+            # run burn-in
+            pos, _, _ = sampler.run_mcmc(starts, nsteps_burn, progress=True)
+            # ------
+            # save the backend for the burn in
+            shutil.copy(backend_fname, backend_burnin_fname)
+            # now reset the sampler
+            sampler.reset()
+            # run post-burn
+            print('## running the full chain ... ')
+            sampler.run_mcmc(pos, nsteps_chain, progress=True)
 
     # get samples
     samples['mcmc'] = sampler.get_chain(flat=True)
