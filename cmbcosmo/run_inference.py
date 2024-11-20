@@ -392,7 +392,7 @@ if run_sbi:
                           )
         # now save the posterior for later
         pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
-        print(f'## saved posterior as {outdir}/{fname}')
+        print(f'\n## saved posterior as {outdir}/{fname}')
     print(f'## time taken done. {get_time_passed(time0=time0)}')
     print('## ---')
     # get samples

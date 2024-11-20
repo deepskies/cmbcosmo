@@ -37,8 +37,11 @@ def flatten_data(data_dict, ignore_keys=None):
 # ------------------------------------------------------------------------------
 def get_time_passed(time0):
     # time passed
-    timepassed = (time.time() - time0)/60
+    timepassed = time.time() - time0
     if timepassed > 60:
-        return(f'time taken: {(timepassed)/60: .2f} hrs')
+        if timepassed > 3600:
+            return(f'time taken: {(timepassed)/3600: .2f} hrs')
+        else:
+            return(f'time taken: {(timepassed)/60: .2f} min')
     else:
-        return(f'time taken: {(timepassed): .2f} min')
+        return(f'time taken: {(timepassed): .2f} sec')
