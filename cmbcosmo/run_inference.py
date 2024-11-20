@@ -17,6 +17,9 @@ parser = OptionParser()
 parser.add_option('--config-path',
                   dest='config_path',
                   help='path to the (yml) config file.')
+parser.add_option('--gen-data',
+                  action='store_true', dest='gen_data', default=False,
+                  help='generate data vector.')
 parser.add_option('--debug',
                   action='store_true', dest='debug', default=False,
                   help='run everything in debug mode.')
@@ -50,6 +53,7 @@ print('\n## inputs: %s' % options)
 # -----------------------------------------------
 # read in the inputs
 config_path = options.config_path
+gen_data = options.gen_data
 run_mcmc = options.mcmc
 run_sbi = options.sbi
 restart_mcmc_postburn = options.restart_mcmc_postburn
@@ -100,7 +104,7 @@ for i, param in enumerate(params_to_fit):
 datadir = config_data['paths']['outdir'] + 'data'
 # make sure folder exists
 os.makedirs(datadir, exist_ok=True)
-print(f'## saving data in {datadir}')
+print(f'## datadir: {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 lmin, lmax = config_data['datavector']['lmin_lmax']
@@ -112,16 +116,31 @@ theory = theory(lmin=lmin, lmax=lmax,
                 camb_params=config_data['datavector']['camb_params'],
                 base_params=datavector_param_dict
                 )
-datavector = theory.get_prediction(param_dict=datavector_param_dict,
-                                   add_sample_variance=False,
-                                   plot_things=True, plot_tag='data')
+# set up data vector
+# also covariance - used in mcmc and chi2 numbers in the final plots
+if gen_data:
+    datavector = theory.get_prediction(param_dict=datavector_param_dict,
+                                       add_sample_variance=False,
+                                       writetodisk=True,
+                                       plot_things=True, plot_tag='data')
+    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
+                         readfromdisk=False,
+                         plot_things=True, plot_tag='')
+    print('## exiting. rerun the script without gen-data flag.')
+    print(f'## overall time taken: {get_time_passed(time0=start_time)}\n\n')
+    quit()
+else:
+    datavector = theory.get_prediction(param_dict=datavector_param_dict,
+                                       add_sample_variance=False,
+                                       readfromdisk=True, writetodisk=False,
+                                       plot_things=False)
+    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
+                         readfromdisk=True,
+                         plot_things=False, plot_tag='')
 # set up ells
 ells = np.arange(lmin, lmax+1)
 # add a tag for the datavector
 datatag = f'lmin{lmin}_lmax{lmax}_{len(cls_to_consider)}spectra'
-# setup the covariance - used in mcmc and chi2 numbers in the final plots
-cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
-                     plot_things=True, plot_tag='')
 # -----------------------------------------------
 starts, nwalkers = None, None
 samples, outdirs = {}, {}
