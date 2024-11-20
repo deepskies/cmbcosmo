@@ -52,6 +52,7 @@ class theory(object):
     # ---------------------------------------------
     def get_prediction(self, param_dict, add_sample_variance,
                        sigma_to_use=None,
+                       writetodisk=False, readfromdisk=False,
                        plot_things=False, plot_tag=''):
         """
         Required inputs
@@ -84,57 +85,76 @@ class theory(object):
         * cls: array: stacked spectra unless return_unflat is True
                       or return_ell_keys_too is True.
         """
-        # set up camb
-        pars = camb.set_params(**self.camb_params)
-        pars.Alens = self.base_params['Alens']
-        pars.InitPower.r = self.base_params['r']
-        pars.WantTensors = True
-        pars.set_for_lmax(self.lmax, lens_potential_accuracy=1)
-        # now loop in input params
-        if 'r' in param_dict:
-            pars.Alens = param_dict['Alens']
-        if 'Alens' in param_dict:
-            pars.InitPower.r = param_dict['r']
-        # now get the results
-        results = camb.get_results(pars)
-        # extract BB
-        cls = results.get_cmb_power_spectra(pars, CMB_unit='muK', spectra=['total'])['total'][self.lmin:self.lmax+1,2]
-        # set up ells based on lmin, lmax
-        ells = np.arange(self.lmin, self.lmax+1)
-
-        # now add sample variance, if applicable
-        if add_sample_variance:
-            # first check if the sigma from the sample variance is available
-            if sigma_to_use is None:
-                # calculate
-                sigma_sample_var = np.sqrt( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
+        # figure out the fname to reading/writing to disk
+        if readfromdisk or writetodisk:
+            param_tag = str(param_dict)[1:][:-1].replace(':', '').replace("'", "").replace(" ", "").replace(',', '_')
+            fname = f'{self.outdir}/data_{self.data_tag}_{param_tag}.npz'
+        # if need to read from disk
+        if readfromdisk:
+            if os.path.exists(fname):
+                print(f'## reading cls from {fname} .. ')
+                # data file found - read it in
+                cls = np.load(fname)['cls']
             else:
-                sigma_sample_var = sigma_to_use
-            # now add random pick from a normal distribution with sigma being the sigma from sample variance
-            mean = np.zeros_like(cls)
-            cls += norm.rvs(loc=mean,
-                            scale=sigma_sample_var,
-                            size=len(mean)
-                            )
-        if plot_things:
-            plt.clf()
-            plt.loglog(ells, cls, '.-')
-            plt.xlabel(r'$\ell$')
-            plt.ylabel(r'$C_{\ell,BB}$')
+                # no file
+                raise ValueError(f'## cls not saved to disk. rerun with writetodisk.')
+        else:
+            # set up camb
+            pars = camb.set_params(**self.camb_params)
+            pars.Alens = self.base_params['Alens']
+            pars.InitPower.r = self.base_params['r']
+            pars.WantTensors = True
+            pars.set_for_lmax(self.lmax, lens_potential_accuracy=1)
+            # now loop in input params
+            if 'r' in param_dict:
+                pars.Alens = param_dict['Alens']
+            if 'Alens' in param_dict:
+                pars.InitPower.r = param_dict['r']
+            # now get the results
+            results = camb.get_results(pars)
+            # extract BB
+            cls = results.get_cmb_power_spectra(pars, CMB_unit='muK', spectra=['total'])['total'][self.lmin:self.lmax+1,2]
+            # set up ells based on lmin, lmax
+            ells = np.arange(self.lmin, self.lmax+1)
+
+            # now add sample variance, if applicable
             if add_sample_variance:
-                plt.title('WITH sample variance added to cls')
-            if plot_tag != '':
-                plot_tag = '_' + plot_tag
-            fname = f'plot_cls{plot_tag}_{self.data_tag}.png'
-            plt.savefig(f'{self.outdir}/{fname}',
-                        bbox_inches='tight', format='png')
-            print('# saved %s' % fname)
-            plt.close()
+                # first check if the sigma from the sample variance is available
+                if sigma_to_use is None:
+                    # calculate
+                    sigma_sample_var = np.sqrt( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
+                else:
+                    sigma_sample_var = sigma_to_use
+                # now add random pick from a normal distribution with sigma being the sigma from sample variance
+                mean = np.zeros_like(cls)
+                cls += norm.rvs(loc=mean,
+                                scale=sigma_sample_var,
+                                size=len(mean)
+                                )
+            if writetodisk:
+                np.savez_compressed(fname, cls=cls, ells=ells)
+                print(f'## saved cls in {fname}')
+
+            if plot_things:
+                plt.clf()
+                plt.loglog(ells, cls, '.-')
+                plt.xlabel(r'$\ell$')
+                plt.ylabel(r'$C_{\ell,BB}$')
+                if add_sample_variance:
+                    plt.title('WITH sample variance added to cls')
+                if plot_tag != '':
+                    plot_tag = '_' + plot_tag
+                fname = f'plot_cls{plot_tag}_{self.data_tag}.png'
+                plt.savefig(f'{self.outdir}/{fname}',
+                            bbox_inches='tight', format='png')
+                print('# saved %s' % fname)
+                plt.close()
 
         return cls
 
     # ---------------------------------------------
-    def get_cov(self, param_dict, plot_things=False, plot_tag=''):
+    def get_cov(self, param_dict, readfromdisk=True,
+                plot_things=False, plot_tag=''):
         """
 
         Required inputs
@@ -160,10 +180,13 @@ class theory(object):
         param_tag = str(param_dict)[1:][:-1].replace(':', '').replace("'", "").replace(" ", "").replace(',', '_')
         fname = f'{self.outdir}/cov_{self.data_tag}_{param_tag}.npz'
         # see if the cov is already calculated
-        if os.path.exists(fname):
-            # cov file already exists - read it in
-            print(f'## reading cov from {fname} .. ')
-            cov = np.load(fname)['cov']
+        if readfromdisk:
+            if os.path.exists(fname):
+                # cov file already exists - read it in
+                print(f'## reading cov from {fname} .. ')
+                cov = np.load(fname)['cov']
+            else:
+                raise ValueError(f'## cov not saved to disk. rerun with readfromdisk=False.')
         else:
             # set up ls
             ells = np.arange(self.lmin, self.lmax+1)
