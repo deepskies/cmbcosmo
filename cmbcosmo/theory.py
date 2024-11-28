@@ -134,6 +134,10 @@ class theory(object):
             if writetodisk:
                 np.savez_compressed(fname, cls=cls, ells=ells)
                 print(f'## saved cls in {fname}')
+                # also save the camb params object
+                fname = f'{self.outdir}/cambparams_{self.data_tag}_{param_tag}.npz'
+                np.savez_compressed(fname, pars=repr(pars))
+                print(f'## saved CAMBoarams object in {fname}')
 
             if plot_things:
                 plt.clf()
