@@ -35,8 +35,7 @@ inference:
         randomseed_starts: 4627
         # chain details
         nwalkers: 20
-        nburn: 10
-        nchain: 10
+        nsteps: 10
     # details re sbi
     sbi:
         infer_nsims: 50

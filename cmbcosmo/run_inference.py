@@ -27,12 +27,9 @@ parser.add_option('--debug',
 parser.add_option('--mcmc',
                   action='store_true', dest='mcmc', default=False,
                   help='use to run MCMC inference.')
-parser.add_option('--restart-mcmc-burn',
-                  action='store_true', dest='restart_mcmc_fromburn', default=False,
-                  help='use to restart mcmc from burnin (using backend).')
-parser.add_option('--restart-mcmc-postburn',
-                  action='store_true', dest='restart_mcmc_postburn', default=False,
-                  help='use to restart mcmc post-burnin (using backend).')
+parser.add_option('--restart-mcmc',
+                  action='store_true', dest='restart_mcmc', default=False,
+                  help='use to restart mcmc (using backend).')
 # sbi options
 parser.add_option('--sbi',
                   action='store_true', dest='sbi', default=False,
@@ -56,15 +53,13 @@ config_path = options.config_path
 gen_data = options.gen_data
 run_mcmc = options.mcmc
 run_sbi = options.sbi
-restart_mcmc_postburn = options.restart_mcmc_postburn
-restart_mcmc_fromburn = options.restart_mcmc_fromburn
+restart_mcmc = options.restart_mcmc
 reanalyze_sbi = options.reanalyze_sbi
 no_sbi_checks = options.no_sbi_checks
 debug = options.debug
 # deal with imports
 if run_mcmc:
     import emcee as emcee
-    import shutil
     from helpers_plots import plot_chainvals
 if run_sbi:
     from sbi.analysis import pairplot
@@ -78,8 +73,7 @@ if run_sbi:
 config_data = setup_config(config_path=config_path)
 if debug:
     config_data['inference']['mcmc']['nwalkers'] = 5
-    config_data['inference']['mcmc']['nburn'] = 5
-    config_data['inference']['mcmc']['nchain'] = 5
+    config_data['inference']['mcmc']['nsteps'] = 10
     config_data['inference']['sbi']['infer_nsims'] = 10
     config_data['inference']['sbi']['posterior_nsamples'] = 10
     config_data['inference']['sbi']['pc_nsamples'] = 5
@@ -150,9 +144,9 @@ if run_mcmc:
     # pull mcmc related config details
     mcmc_dict = config_data['inference']['mcmc']
     nwalkers = mcmc_dict['nwalkers']
-    nsteps_burn, nsteps_chain = mcmc_dict['nburn'], mcmc_dict['nchain']
+    nsteps = mcmc_dict['nsteps']
     # set up the outdir
-    outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps_burn}burn_{nsteps_chain}post_' \
+    outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps}steps_' \
                 + config_data['outtag'] + '_' + datatag
     if debug:
         outdir = f'debug_{outdir}'
@@ -252,13 +246,11 @@ if run_mcmc:
     # ---------------------------------------------
     # now run mcmc
     # setup sampler backend
-    backend_burnin_fname = f'{outdir}/backend-burnin.h5'
     backend_fname = f'{outdir}/backend.h5'
     backend = emcee.backends.HDFBackend(backend_fname)
     # figure out where to start from
-    if restart_mcmc_fromburn:
-        # restart from burn
-        print('## resuming burn in ... ')
+    if restart_mcmc:
+        print('## resuming mcmc run ... ')
         with Pool() as pool:
             # set up the sampler
             sampler = emcee.EnsembleSampler(nwalkers, npar,
@@ -267,31 +259,10 @@ if run_mcmc:
                                             pool=pool
                                             )
             # run the chain; n-steps modified based on how many were completed before
-            pos, _, _ = sampler.run_mcmc(None,
-                                        nsteps_burn - backend.iteration,
-                                        progress=True
-                                        )
-            # save the backend for the burn in
-            shutil.copy(backend_fname, backend_burnin_fname)
-            # now reset the sampler
-            sampler.reset()
-            # run post-burn
-            print('## running the full chain ... ')
-            sampler.run_mcmc(None, nsteps_chain, progress=True)
-    elif restart_mcmc_postburn:
-        # start from postburn
-        print('## resuming the chain postburn ... ')
-        with Pool() as pool:
-            # set up the sampler
-            sampler = emcee.EnsembleSampler(nwalkers, npar,
-                                            get_logposterior,
-                                            backend=backend,
-                                            pool=pool
-                                            )
-            # run the chain; n-steps modified based on how many were completed before
-            sampler.run_mcmc(None, nsteps_chain - backend.iteration, progress=True)
+            sampler.run_mcmc(None, nsteps - backend.iteration, progress=True)
     else:
-        # start from scratch
+        print('## starting mcmc run... ')
+        backend.reset(nwalkers, npar)
         with Pool() as pool:
             # set up the sampler
             sampler = emcee.EnsembleSampler(nwalkers, npar,
@@ -299,36 +270,42 @@ if run_mcmc:
                                             backend=backend,
                                             pool=pool
                                             )
-            # ------
-            print('## burning in ... ')
-            # run burn-in
-            pos, _, _ = sampler.run_mcmc(starts, nsteps_burn, progress=True)
-            # ------
-            # save the backend for the burn in
-            shutil.copy(backend_fname, backend_burnin_fname)
-            # now reset the sampler
-            sampler.reset()
-            # run post-burn
-            print('## running the full chain ... ')
-            sampler.run_mcmc(pos, nsteps_chain, progress=True)
+            # run the chain
+            sampler.run_mcmc(starts, nsteps, progress=True)
 
+    # get autocorr time
+    tau = sampler.get_autocorr_time(quiet=True)
+    nsteps_to_forget = np.ceil(max(tau))
+    print(f'## autocorr time: {tau}\n## nsteps_to_forget={nsteps_to_forget}')
+    # we should be throwing away a few times tau steps - lets say 3x
+    # lets only really implement this if not in debug mode
+    burn_steps = int(3 * nsteps_to_forget)
+    print(f'## will be discarding {burn_steps} out of {nsteps} as burn in.')
+    if burn_steps > nsteps:
+        # need to run longer chain
+        # raise error when not in debug mode
+        if debug:
+            print(f'## tau is {nsteps_to_forget} so cant discard 3x = {burn_steps}; ' +
+                    'setting burn_steps to 0 here.')
+            burn_steps = 0
+        else:
+            raise ValueError(f'## need to run longer chain - tau is {nsteps_to_forget};' +
+                             f'so cant discard 3x = {burn_steps} if chain is {nsteps} steps.')
     # get samples
-    samples['mcmc'] = sampler.get_chain(flat=True)
+    samples['mcmc'] = sampler.get_chain(discard=burn_steps, flat=True)
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
     # save chainvals
-    # first the chain
+    # full chain
     plot_chainvals(chain_unflattened=sampler.get_chain(),
-                    outdir=outdir, npar=npar, nsteps=nsteps_chain,
-                    starts=starts, truths=truths, param_labels=param_labels, filetag='post-burnin')
-    # now the burnin
-    backend_burnin = emcee.backends.HDFBackend(backend_burnin_fname)
-    sampler_burnin = emcee.EnsembleSampler(nwalkers, npar,
-                                           get_logposterior,
-                                           backend=backend_burnin)
-    plot_chainvals(chain_unflattened=sampler_burnin.get_chain(),
-                    outdir=outdir, npar=npar, nsteps=nsteps_chain,
-                    starts=starts, truths=truths, param_labels=param_labels, filetag='burnin')
-    backend, sampler, backend_burnin, sampler_burnin = [], [], [], []
+                    outdir=outdir, npar=npar, nsteps=nsteps,
+                    starts=starts, truths=truths, param_labels=param_labels,
+                    filetag='full-chain')
+    # burnin discarded
+    plot_chainvals(chain_unflattened=sampler.get_chain(discard=burn_steps),
+                    outdir=outdir, npar=npar, nsteps=nsteps-burn_steps,
+                    starts=starts, truths=truths, param_labels=param_labels,
+                    filetag='burn-discarded')
+    backend, sampler = [], []
     print('# ----------')
     outdirs['mcmc'] = outdir
 
