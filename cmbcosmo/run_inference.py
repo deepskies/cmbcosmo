@@ -146,6 +146,7 @@ if run_mcmc:
     mcmc_dict = config_data['inference']['mcmc']
     nwalkers = mcmc_dict['nwalkers']
     nsteps_max = mcmc_dict['max_nsteps']
+    burnin_tau_factor = mcmc_dict.get('burnin_tau_factor', 3)
     check_every_nsteps = mcmc_dict['check_every_nsteps']
     convergence_ntau = mcmc_dict.get('convergence_ntau', 100)
     convergence_deltau = mcmc_dict.get('convergence_deltau', 0.01)
@@ -330,15 +331,15 @@ if run_mcmc:
     tau = sampler.get_autocorr_time(quiet=True)
     nsteps_to_forget = np.ceil(max(tau))
     print(f'## autocorr time: {tau}\n## nsteps_to_forget={nsteps_to_forget}')
-    # we should be throwing away a few times tau steps - lets say 3x
+    # we should be throwing away a few times tau steps - lets say 3x (or user-specified)
     # lets only really implement this if not in debug mode
-    burn_steps = int(3 * nsteps_to_forget)
+    burn_steps = int(burnin_tau_factor * nsteps_to_forget)
     print(f'## will be discarding {burn_steps} out of {nsteps} as burn in.')
     if burn_steps > nsteps:
         # need to run longer chain
         # raise error when not in debug mode
         if debug:
-            print(f'## tau is {nsteps_to_forget} so cant discard 3x = {burn_steps}; ' +
+            print(f'## tau is {nsteps_to_forget} so cant discard {burnin_tau_factor}x = {burn_steps}; ' +
                     'setting burn_steps to 0 here.')
             burn_steps = 0
         else:

@@ -36,6 +36,8 @@ inference:
         # chain details
         nwalkers: 20
         max_nsteps: 100
+        # burnin criterion
+        burnin_tau_factor: 3        # burnin = burnin_tau_factor * tau steps
         # following for convergence checks for early stopping
         check_every_nsteps: 50
         convergence_ntau: 100       # convergence when chain is convergence_ntau * tau
