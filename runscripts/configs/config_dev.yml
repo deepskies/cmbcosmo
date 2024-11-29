@@ -35,7 +35,11 @@ inference:
         randomseed_starts: 4627
         # chain details
         nwalkers: 20
-        nsteps: 10
+        max_nsteps: 100
+        # following for convergence checks for early stopping
+        check_every_nsteps: 50
+        convergence_ntau: 100       # convergence when chain is convergence_ntau * tau
+        convergence_deltau: 0.01    # convergence when tau changes by < convergence_deltau
     # details re sbi
     sbi:
         infer_nsims: 50

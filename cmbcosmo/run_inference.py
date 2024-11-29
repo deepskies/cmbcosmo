@@ -73,7 +73,8 @@ if run_sbi:
 config_data = setup_config(config_path=config_path)
 if debug:
     config_data['inference']['mcmc']['nwalkers'] = 5
-    config_data['inference']['mcmc']['nsteps'] = 10
+    config_data['inference']['mcmc']['max_nsteps'] = 10
+    config_data['inference']['mcmc']['check_every_nsteps'] = 2
     config_data['inference']['sbi']['infer_nsims'] = 10
     config_data['inference']['sbi']['posterior_nsamples'] = 10
     config_data['inference']['sbi']['pc_nsamples'] = 5
@@ -144,9 +145,12 @@ if run_mcmc:
     # pull mcmc related config details
     mcmc_dict = config_data['inference']['mcmc']
     nwalkers = mcmc_dict['nwalkers']
-    nsteps = mcmc_dict['nsteps']
+    nsteps_max = mcmc_dict['max_nsteps']
+    check_every_nsteps = mcmc_dict['check_every_nsteps']
+    convergence_ntau = mcmc_dict.get('convergence_ntau', 100)
+    convergence_deltau = mcmc_dict.get('convergence_deltau', 0.01)
     # set up the outdir
-    outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps}steps_' \
+    outdir = f'lk_mcmc_{nwalkers}walkers_{nsteps_max}max-steps_' \
                 + config_data['outtag'] + '_' + datatag
     if debug:
         outdir = f'debug_{outdir}'
@@ -248,21 +252,16 @@ if run_mcmc:
     # setup sampler backend
     backend_fname = f'{outdir}/backend.h5'
     backend = emcee.backends.HDFBackend(backend_fname)
+    # ---
+    # set things up for checking covergence along the chain
+    old_tau = np.inf
+    # array to hold auto corr times
+    stepnum, autocorr = [], []
+    # --
     # figure out where to start from
     if restart_mcmc:
         print('## resuming mcmc run ... ')
-        with Pool() as pool:
-            # set up the sampler
-            sampler = emcee.EnsembleSampler(nwalkers, npar,
-                                            get_logposterior,
-                                            backend=backend,
-                                            pool=pool
-                                            )
-            # run the chain; n-steps modified based on how many were completed before
-            sampler.run_mcmc(None, nsteps - backend.iteration, progress=True)
-    else:
-        print('## starting mcmc run... ')
-        backend.reset(nwalkers, npar)
+        nsteps_backend = backend.iteration
         with Pool() as pool:
             # set up the sampler
             sampler = emcee.EnsembleSampler(nwalkers, npar,
@@ -271,8 +270,62 @@ if run_mcmc:
                                             pool=pool
                                             )
             # run the chain
-            sampler.run_mcmc(starts, nsteps, progress=True)
+            for sample in sampler.sample(backend.get_last_sample(),
+                                         iterations=nsteps_max-nsteps_backend,
+                                         progress=True):
+                # check convergence every N (user specified) steps
+                if sampler.iteration % check_every_nsteps:
+                    continue
 
+                # get the autocorrelation time so far
+                # using tol=0 will give something even if its not perfect
+                tau = sampler.get_autocorr_time(tol=0)
+                autocorr.append(np.mean(tau))
+                stepnum.append(sampler.iteration)
+
+                # now look at the convergence
+                # first check if chain is N (user specified or 100) times estimated tau
+                converged = np.all(tau * convergence_ntau < sampler.iteration)
+                # also check if the estimated tau changes by the threshold
+                # (user specifif or 1%) or not
+                converged &= np.all(np.abs(old_tau - tau) / tau < convergence_deltau)
+                if converged:
+                    break
+                old_tau = tau
+    else:
+        print('## starting mcmc run... ')
+        backend.reset(nwalkers, npar)
+        nsteps_backend = 0
+        with Pool() as pool:
+            # set up the sampler
+            sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                            get_logposterior,
+                                            backend=backend,
+                                            pool=pool
+                                            )
+            # run the chain
+            for sample in sampler.sample(starts, iterations=nsteps_max, progress=True):
+                # check convergence every N (user specified) steps
+                if sampler.iteration % check_every_nsteps:
+                    continue
+
+                # get the autocorrelation time so far
+                # using tol=0 will give something even if its not perfect
+                tau = sampler.get_autocorr_time(tol=0)
+                autocorr.append(np.mean(tau))
+                stepnum.append(sampler.iteration)
+
+                # now look at the convergence
+                # first check if chain is N (user specified or 100) times estimated tau
+                converged = np.all(tau * convergence_ntau < sampler.iteration)
+                # also check if the estimated tau changes by the threshold
+                # (user specifif or 1%) or not
+                converged &= np.all(np.abs(old_tau - tau) / tau < convergence_deltau)
+                if converged:
+                    break
+                old_tau = tau
+
+    nsteps = backend.iteration
     # get autocorr time
     tau = sampler.get_autocorr_time(quiet=True)
     nsteps_to_forget = np.ceil(max(tau))
@@ -294,6 +347,26 @@ if run_mcmc:
     # get samples
     samples['mcmc'] = sampler.get_chain(discard=burn_steps, flat=True)
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
+
+    # lets save autocorr and plot it, if applicable
+    if len(autocorr) > 0:
+        stepnum, autocorr = np.array(stepnum), np.array(autocorr)
+        # plot
+        plt.clf()
+        plt.plot(stepnum, autocorr, '.-')
+        plt.xlabel("number of steps")
+        plt.ylabel(r"mean $\hat{\tau}$")
+        # save fig
+        fname = f'plot_mcmc_autocorr_steps{nsteps_backend}-{nsteps}.png'
+        plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+        print('## saved %s' % fname )
+        plt.close()
+
+        # lets also save autocorr array
+        fname = f'{outdir}/autocorr_steps{nsteps_backend}-{nsteps}.npz'
+        np.savez_compressed(fname, autocorr=autocorr, stepnum=stepnum)
+        print(f'## saved autcorr data in {fname}')
+
     # save chainvals
     # full chain
     plot_chainvals(chain_unflattened=sampler.get_chain(),
