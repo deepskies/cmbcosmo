@@ -63,11 +63,15 @@ if run_mcmc:
     from helpers_plots import plot_chainvals
 if run_sbi:
     from sbi.analysis import pairplot
+    from sbi.inference import NPE, simulate_for_sbi
+    from sbi.utils import BoxUniform
+    from sbi.utils.user_input_checks import (
+            check_sbi_inputs, process_prior, process_simulator,
+            )
+    from sbi.analysis.plot import sbc_rank_plot
+    from sbi.diagnostics import check_sbc, run_sbc
     import pickle
     import torch
-    from sbi import utils as utils
-    from sbi.inference.base import infer
-    from sbi.analysis import check_sbc, run_sbc, sbc_rank_plot
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
@@ -405,10 +409,9 @@ if run_sbi:
     # construct prior
     low = [param_priors[i][0] for i in range(npar)]
     high = [param_priors[i][1] for i in range(npar)]
-    prior = utils.BoxUniform(low=torch.FloatTensor(low),
-                             high=torch.FloatTensor(high)
-                             )
-    # construct posterior
+    prior = BoxUniform(low=torch.FloatTensor(low),
+                       high=torch.FloatTensor(high)
+                       )
     # ---------------------------------------------
     # first set up simulator
     def simulator(params):
@@ -436,11 +439,29 @@ if run_sbi:
             print(f'## reading in saved posteriors from {outdir}/{fname}')
             posterior = pickle.load( open(f'{outdir}/{fname}', 'rb') )
     else:
-        posterior = infer(simulator=simulator,
-                          prior=prior,
-                          method='SNPE',
-                          num_simulations=nsims,
-                          )
+        # check prior
+        prior, num_parameters, prior_returns_numpy = process_prior(prior=prior)
+        # check simulator
+        simulator = process_simulator(user_simulator=simulator,
+                                      prior=prior,
+                                      is_numpy_simulator=prior_returns_numpy
+                                      )
+        # check prior, simulator
+        check_sbi_inputs(simulator=simulator, prior=prior)
+        # create inference object
+        inference = NPE(prior=prior)
+        # generate simulations
+        theta, x = simulate_for_sbi(simulator=simulator,
+                                    proposal=prior, num_simulations=nsims,
+                                    seed=sbi_dict['infer_seed'],
+                                    show_progress_bar=True
+                                    )
+        # pass sims to inference object
+        inference = inference.append_simulations(theta=theta, x=x)
+        # now train the netwrok
+        density_estimator = inference.train()
+        # build posterior
+        posterior = inference.build_posterior(density_estimator=density_estimator)
         # now save the posterior for later
         pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
         print(f'\n## saved posterior as {outdir}/{fname}')
@@ -494,8 +515,7 @@ if run_sbi:
             nsamples = len(samples)
             # pairplot to check what samples were drawn for PPC
             _, axes = pairplot(samples=samples,
-                               offdiag=["kde"],
-                               diag=["kde"],
+                               upper='scatter',
                                labels=params_to_fit,
                                figsize=(npar * 2, npar * 2),
                                )
@@ -535,13 +555,15 @@ if run_sbi:
             x_pp_subset = np.array(x_pp_subset)
             # plot xpp vs observed data
             _, axes = pairplot(samples=np.log(x_pp_subset),
-                            points=np.log(datavector.reshape(1,-1)[0]),
-                            points_colors="red",
-                            upper="scatter",
-                            scatter_offdiag=dict(marker="."), #, s=5),
-                            points_offdiag=dict(marker="+"), #markersize=15),
-                            labels=[r"log($C_{%s}$)" % ells[d] for d in subset_inds_to_plot],
-                            figsize=(ninds * 2, ninds * 2),
+                               points=np.log(datavector[subset_inds_to_plot].reshape(1,-1)),
+                               upper="scatter",
+                               fig_kwargs=dict(
+                                   scatter_offdiag=dict(marker="."), #, s=5),
+                                   points_offdiag=dict(marker="+"), #markersize=15),
+                                   points_colors="red",
+                                   ),
+                               labels=[r"ln($C_{%s}$)" % ells[d] for d in subset_inds_to_plot],
+                               figsize=(ninds * 2, ninds * 2),
                             )
             # lets set up the limits to ensure we see everything
             # first min, max from the sampples
@@ -687,9 +709,16 @@ if run_sbi:
                                     )
             # run sbc now
             print(f'## running run_sbc ..')
-            ranks, dap_samples = run_sbc(thetas, xs, posterior, num_posterior_samples=nsamples)
+            ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
+                                         posterior=posterior,
+                                         num_posterior_samples=nsamples,
+                                         show_progress_bar=True
+                                         )
             print(f'## running check_sbc ..')
-            check_stats = check_sbc(ranks, thetas, dap_samples, num_posterior_samples=nsamples)
+            check_stats = check_sbc(ranks=ranks, prior_samples=thetas,
+                                    dap_samples=dap_samples,
+                                    num_posterior_samples=nsamples
+                                    )
 
             # ------------------------------
             # set up plots

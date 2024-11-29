@@ -44,6 +44,7 @@ inference:
     # details re sbi
     sbi:
         infer_nsims: 1000
+        infer_seed: 214
         posterior_nsamples: 1000
         sampling_seed: 1425
         # predictive checks (pc) related
