@@ -37,6 +37,9 @@ parser.add_option('--sbi',
 parser.add_option('--reanalyze-sbi',
                   action='store_true', dest='reanalyze_sbi', default=False,
                   help='use to reanalyze sbi samples (using saved samples).')
+parser.add_option('--reanalyze-sbi-checks',
+                  action='store_true', dest='reanalyze_sbi_checks', default=False,
+                  help='use to reanalyze sbi checks (using saved samples).')
 parser.add_option('--no-checks',
                   action='store_true', dest='no_sbi_checks', default=False,
                   help='use to not run any sbi checks.')
@@ -55,6 +58,7 @@ run_mcmc = options.mcmc
 run_sbi = options.sbi
 restart_mcmc = options.restart_mcmc
 reanalyze_sbi = options.reanalyze_sbi
+reanalyze_sbi_checks = options.reanalyze_sbi_checks
 no_sbi_checks = options.no_sbi_checks
 debug = options.debug
 # deal with imports
@@ -481,7 +485,7 @@ if run_sbi:
                                             )
         # ---------------------------------------------
         def _pred_check_helper(samples, samples_tag, datavector, datavector_param_dict,
-                               subset_inds_to_plot, additional_tag=None
+                               subset_inds_to_plot, reanalyze=False, additional_tag=None
                                ):
             """
             helper function to deal with the various plots for the
@@ -533,12 +537,29 @@ if run_sbi:
 
             # now generate data
             print(f'## starting data generation using the {samples_tag} samples ...')
-            # lets parallelize
-            samples_ = samples.tolist()
-            x_pp = list(tqdm(Pool().imap(helper_ppc, samples_),
-                             total=len(samples_)
-                            )
+            if subset_inds_to_plot is None:
+                fname = f'sbi_ppc-samples_{samples_tag}-pred-check-all-ells{additional_tag}.pickle'
+            else:
+                fname = f'sbi_ppc-samples_{samples_tag}-pred-check-{len(subset_inds_to_plot)}ells{additional_tag}.pickle'
+            if reanalyze:
+                if not os.path.exists(f'{outdir}/{fname}'):
+                    raise ValueError(f'cant reanalyze ppc since {fname} not found in {outdir}.')
+                else:
+                    # read in
+                    print(f'## reading in saved ppc samples from {fname}')
+                    x_pp = pickle.load( open(f'{outdir}/{fname}', 'rb') )['x_pp']
+            else:
+                # lets parallelize
+                samples_ = samples.tolist()
+                x_pp = list(tqdm(Pool().imap(helper_ppc, samples_),
+                                total=len(samples_)
+                                )
                         )
+                # now save the data for later
+                pickle.dump({'samples': samples_,
+                             'x_pp': x_pp
+                             }, open(f'{outdir}/{fname}', 'wb' ) )
+                print(f'\n## saved ppc samples as {fname}')
 
             # lets extract the subset if specified for the pairplot
             print(f'## extracting subset as needed ..')
@@ -629,7 +650,7 @@ if run_sbi:
         # ---------------------------------------------
         def run_pred_checks(datavector, nsamples,
                             datavector_param_dict, seed,
-                            subset_inds_to_plot
+                            subset_inds_to_plot, reanalyze_checks
                             ):
             """
             run both prior and posterior predictive checks.
@@ -653,10 +674,10 @@ if run_sbi:
             # draw samples
             samples = prior.sample(sample_shape=(nsamples,),)
             # run helper
-            _pred_check_helper(samples=samples, samples_tag='prior',
-                                    datavector=datavector, datavector_param_dict=datavector_param_dict,
-                                    subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
-                                    )
+            _pred_check_helper(samples=samples, samples_tag='prior', reanalyze=reanalyze_checks,
+                               datavector=datavector, datavector_param_dict=datavector_param_dict,
+                               subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
+                               )
             print(f'## done with the prior predictive check. time taken: {(time.time() - time0) / 60: .2f} min')
 
             # now run things for the posterior
@@ -667,7 +688,7 @@ if run_sbi:
                                             x=datavector
                                             )
             # run helper
-            _pred_check_helper(samples=samples, samples_tag='posterior',
+            _pred_check_helper(samples=samples, samples_tag='posterior', reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
                                subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
                                )
@@ -682,7 +703,7 @@ if run_sbi:
                                          sigma_to_use=sigma_sample_variance
                                         )
         # ---------------------------------------------
-        def run_sim_based_check(nsbc_runs, nsamples, seed):
+        def run_sim_based_check(nsbc_runs, nsamples, seed, reanalyze):
             """
             run simulation based check
 
@@ -702,11 +723,30 @@ if run_sbi:
             thetas = prior.sample((nsbc_runs,))
             # now simulate "obervations"
             print(f'## simulating observations ..')
-            xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc, thetas.numpy()),
+            # sbc params tag
+            tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples_{seed}seed'
+            fname = f'sbi_sbc-samples_{tag}.pickle'
+
+            # see if we need to read things from disk
+            if reanalyze:
+                if not os.path.exists(f'{outdir}/{fname}'):
+                    raise ValueError(f'cant reanalyze sbc since {fname} not found in {outdir}.')
+                else:
+                    # read in
+                    print(f'## reading in saved sbc samples from {fname}')
+                    xs = pickle.load( open(f'{outdir}/{fname}', 'rb') )['xs']
+            else:
+                xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc, thetas.numpy()),
                                              total=len( thetas.numpy())
                                             )
                                         )
                                     )
+                # now save the data for later
+                pickle.dump({'samples': thetas,
+                             'xs': xs
+                             }, open(f'{outdir}/{fname}', 'wb' ) )
+                print(f'\n## saved sbc samples as {fname}')
+
             # run sbc now
             print(f'## running run_sbc ..')
             ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
@@ -727,8 +767,6 @@ if run_sbi:
             title = f"ks_pvals = {check_stats['ks_pvals'].numpy()} ;\n"
             title += f"c2st_ranks = {check_stats['c2st_ranks'].numpy()} ; "
             title += f"c2st_dap = {check_stats['c2st_dap'].numpy()}"
-            # sbc params tag
-            tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples_{seed}seed'
 
             # figure out nbins
             if nsbc_runs/20 < 1:
@@ -772,12 +810,14 @@ if run_sbi:
                         nsamples=sbi_dict['pc_nsamples'],
                         datavector_param_dict=datavector_param_dict,
                         seed=sbi_dict['pc_seed'],
-                        subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot']
+                        subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot'],
+                        reanalyze_checks=reanalyze_sbi_checks
                         )
         # sbc
         run_sim_based_check(nsbc_runs=sbi_dict['sbc_nruns'],
                             nsamples=sbi_dict['sbc_nsamples'],
-                            seed=sbi_dict['sbc_seed']
+                            seed=sbi_dict['sbc_seed'],
+                            reanalyze=reanalyze_sbi_checks
                             )
     # store outdir to outdirs dictionary
     outdirs['sbi'] = outdir
