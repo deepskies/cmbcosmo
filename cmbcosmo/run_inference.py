@@ -682,12 +682,26 @@ if run_sbi:
                 print(f'\n## saved sbc samples as {fname}')
 
             # run sbc now
-            print(f'## running run_sbc ..')
-            ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
-                                         posterior=posterior,
-                                         num_posterior_samples=nsamples,
-                                         show_progress_bar=True
-                                         )
+            fname = f'sbi_sbc-ranks+_{tag}.pickle'
+            if reanalyze and os.path.exists(f'{outdir}/{fname}'):
+                # read in
+                print(f'## reading in saved run_sbc output from {fname}\n')
+                out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+                ranks, dap_samples = out['ranks'], out['dap_samples']
+                out = []
+            else:
+                print(f'## running run_sbc ..')
+                ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
+                                            posterior=posterior,
+                                            num_posterior_samples=nsamples,
+                                            show_progress_bar=True
+                                            )
+                # now save the data for later
+                pickle.dump({'ranks': ranks,
+                             'dap_samples': dap_samples
+                             }, open(f'{outdir}/{fname}', 'wb' ) )
+                print(f'\n## saved run_sbc output as {fname}\n')
+
             print(f'## running check_sbc ..')
             check_stats = check_sbc(ranks=ranks, prior_samples=thetas,
                                     dap_samples=dap_samples,
