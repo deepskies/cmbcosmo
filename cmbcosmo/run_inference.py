@@ -524,8 +524,11 @@ if run_sbi:
                                )
             # add lines for true params
             for ind, par in enumerate(params_to_fit):
-                axes[ind, ind].axvline(x=datavector_param_dict[par],
-                                    color='k', ls='--', lw=2)
+                if npar == 1:
+                    ax = axes
+                else:
+                    ax = axes[ind, ind]
+                ax.axvline(x=datavector_param_dict[par], color='k', ls='--', lw=2)
             # title
             plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
             # save fig

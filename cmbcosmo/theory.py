@@ -106,9 +106,9 @@ class theory(object):
             pars.WantTensors = True
             pars.set_for_lmax(self.lmax, lens_potential_accuracy=1)
             # now loop in input params
-            if 'r' in param_dict:
-                pars.Alens = param_dict['Alens']
             if 'Alens' in param_dict:
+                pars.Alens = param_dict['Alens']
+            if 'r' in param_dict:
                 pars.InitPower.r = param_dict['r']
             # now get the results
             results = camb.get_results(pars)
