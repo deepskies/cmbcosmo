@@ -561,55 +561,6 @@ if run_sbi:
                              }, open(f'{outdir}/{fname}', 'wb' ) )
                 print(f'\n## saved ppc samples as {fname}')
 
-            # lets extract the subset if specified for the pairplot
-            print(f'## extracting subset as needed ..')
-            if subset_inds_to_plot is not None:
-                x_pp_subset = []
-                for nth in range(len(x_pp)):
-                    x_pp_subset.append(x_pp[nth][subset_inds_to_plot])
-            else:
-                x_pp_subset = x_pp
-                subset_inds_to_plot = len(x_pp[0])
-
-            ninds = len(subset_inds_to_plot)
-            print(f'## working on the pairplot ...')
-            x_pp_subset = np.array(x_pp_subset)
-            # plot xpp vs observed data
-            _, axes = pairplot(samples=np.log(x_pp_subset),
-                               points=np.log(datavector[subset_inds_to_plot].reshape(1,-1)),
-                               upper="scatter",
-                               fig_kwargs=dict(
-                                   scatter_offdiag=dict(marker="."), #, s=5),
-                                   points_offdiag=dict(marker="+"), #markersize=15),
-                                   points_colors="red",
-                                   ),
-                               labels=[r"ln($C_{%s}$)" % ells[d] for d in subset_inds_to_plot],
-                               figsize=(ninds * 2, ninds * 2),
-                            )
-            # lets set up the limits to ensure we see everything
-            # first min, max from the sampples
-            min_, max_ = np.min(np.log(x_pp_subset)), np.max(np.log(x_pp_subset))
-            # now loop in datavector
-            min_ = min([min_, np.min(np.log(datavector))])
-            max_ = min([max_, np.max(np.log(datavector))])
-            # now implement
-            for nrow in range(len(axes)):
-                for ncol in range(len(axes)):
-                    # diagonal is a count histogram => update xlims
-                    if nrow == ncol:
-                        axes[nrow, ncol].set_xlim([min_, max_])
-                    # upper diagonal subplots need both lims updated
-                    if nrow < ncol:
-                        axes[nrow, ncol].set_ylim([min_, max_])
-                        axes[nrow, ncol].set_xlim([min_, max_])
-            # title
-            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
-            # save plot
-            fname = f'plot_{samples_tag}-pred-check-{ninds}ells{additional_tag}.png'
-            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
-            print('## saved %s' % fname )
-            plt.close()
-
             # lets plot of the spectra - this piece should work for >1 spectra type
             print(f'## working on the spectra plot ...')
             # plot
@@ -896,32 +847,6 @@ for tech_tag in samples:
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
                        get_bestfits=False, check_convergence=not debug,
                        param_ranges=param_priors,
-                       title=title
-                    )
-    # replot with truth-centric limits
-    fname = f'plot_{tech_tag}_chainconsumer_truth-limited-ranges.png'
-    param_ranges = list(np.zeros_like(param_priors))
-    for i in range(npar):
-        delta = abs( param_priors[i][0] - param_priors[i][1] )
-        param_ranges[i][0] = truths[i] - delta/2
-        param_ranges[i][1] = truths[i] + delta/2
-        # make sure we aren't going past the priors
-        # lower bound
-        if param_ranges[i][0] < param_priors[i][0]:
-            param_ranges[i][0] = param_priors[i][0]
-        # upper bound
-        if param_ranges[i][1] > param_priors[i][1]:
-            param_ranges[i][1] = param_priors[i][1]
-    # plot
-    plot_chainconsumer(samples=samples[tech_tag],
-                       truths=truths,
-                       param_labels=param_labels,
-                       color_posterior=None, color_truth=None,
-                       starts=starts, nwalkers=nwalkers,
-                       color_starts='r',
-                       showplot=False, savefig=True, fname=fname, outdir=outdir,
-                       get_bestfits=False, check_convergence=not debug,
-                       param_ranges=param_ranges,
                        title=title
                     )
     print(f'\n## {tech_tag}')
