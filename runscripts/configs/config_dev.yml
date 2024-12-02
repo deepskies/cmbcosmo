@@ -12,7 +12,6 @@ paths:
 datavector:
     cosmo:  {'r': 0.04, 'Alens': 1.0}
     lmin_lmax: [5,300]
-    detector_white_noise: True
     fsky: 0.9
     camb_params: {'H0': 67.32117, 'ombh2': 0.0223828,
                   'omch2': 0.1201075,

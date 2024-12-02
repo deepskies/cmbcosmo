@@ -137,7 +137,7 @@ class theory(object):
                 # also save the camb params object
                 fname = f'{self.outdir}/cambparams_{self.data_tag}_{param_tag}.npz'
                 np.savez_compressed(fname, pars=repr(pars))
-                print(f'## saved CAMBoarams object in {fname}')
+                print(f'## saved CAMBparams object in {fname}')
 
             if plot_things:
                 plt.clf()

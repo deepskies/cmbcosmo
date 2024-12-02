@@ -7,7 +7,6 @@ import os
 from cmbcosmo.setup_config import setup_config
 from cmbcosmo.theory import theory
 from cmbcosmo.helpers_misc import get_time_passed
-import deepcmbsim as simcmb
 from cmbcosmo.settings import *
 from multiprocessing import Pool
 from tqdm import tqdm
@@ -129,7 +128,7 @@ if gen_data:
     cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
                          readfromdisk=False,
                          plot_things=True, plot_tag='')
-    print('## exiting. rerun the script without gen-data flag.')
+    print('## exiting. rerun the script without gen-data flag to run inference.')
     print(f'## overall time taken: {get_time_passed(time0=start_time)}\n\n')
     quit()
 else:
@@ -302,7 +301,7 @@ if run_mcmc:
                     break
                 old_tau = tau
     else:
-        print('## starting mcmc run... ')
+        print('## starting mcmc run ... ')
         backend.reset(nwalkers, npar)
         nsteps_backend = 0
         with Pool() as pool:
@@ -338,7 +337,7 @@ if run_mcmc:
     # get autocorr time
     tau = sampler.get_autocorr_time(quiet=True)
     nsteps_to_forget = np.ceil(max(tau))
-    print(f'## autocorr time: {tau}\n## nsteps_to_forget={nsteps_to_forget}')
+    print(f'## autocorr time: {tau}\n## nsteps_to_forget: {nsteps_to_forget}')
     # we should be throwing away a few times tau steps - lets say 3x (or user-specified)
     # lets only really implement this if not in debug mode
     burn_steps = int(burnin_tau_factor * nsteps_to_forget)
@@ -407,7 +406,7 @@ if run_sbi:
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving sbi stuff in {outdir}')
 
-    # extra the cov diagonal for the sample variance
+    # extract the cov diagonal for the sample variance
     sigma_sample_variance = np.sqrt(cov.diagonal())
 
     # construct prior
@@ -479,7 +478,7 @@ if run_sbi:
                                       ).cpu().detach().numpy()
 
     if not no_sbi_checks:
-        def helper_ppc(sample):
+        def helper_sbc_ppc(sample):
                 return theory.get_prediction(param_dict={f: sample[i] for i, f in enumerate(params_to_fit)},
                                              add_sample_variance=True, sigma_to_use=sigma_sample_variance
                                             )
@@ -551,10 +550,10 @@ if run_sbi:
             else:
                 # lets parallelize
                 samples_ = samples.tolist()
-                x_pp = list(tqdm(Pool().imap(helper_ppc, samples_),
+                x_pp = list(tqdm(Pool().imap(helper_sbc_ppc, samples_),
                                 total=len(samples_)
                                 )
-                        )
+                            )
                 # now save the data for later
                 pickle.dump({'samples': samples_,
                              'x_pp': x_pp
@@ -565,30 +564,18 @@ if run_sbi:
             print(f'## working on the spectra plot ...')
             # plot
             plt.clf()
-            nrows = len(cls_to_consider)
-            _, axes = plt.subplots(nrows, 1,)
+            _, ax = plt.subplots(1, 1,)
             plt.subplots_adjust(hspace=0.5)
-            for j in range(len(cls_to_consider)):
-                if nrows == 1:
-                    ax = axes
-                else:
-                    ax = axes[j]
-                # loop over the drawn samples
-                for i in range(len(x_pp)):
-                    ax.loglog(ells, x_pp[i][nells*j:nells*(j+1)], '.-', color='C0', alpha=0.5)
-                # plot the data vector
-                ax.loglog(ells, datavector[nells*j:nells*(j+1)], 'r.-', lw=0.75)
-                # plot the subset for a correspondence with the pairplot
-                ax.loglog(ells[subset_inds_to_plot], datavector[subset_inds_to_plot], 'kP', lw=1.5)
-                # set title
-                ax.set_title(cls_to_consider[j])
+            # loop over the drawn samples
+            for i in range(len(x_pp)):
+                ax.loglog(ells, x_pp[i], '.-', color='C0', alpha=0.5)
+            # plot the data vector
+            ax.loglog(ells, datavector, 'r.-', lw=0.75)
+            # set title
+            ax.set_title(cls_to_consider[0])
             # plot details
-            if nrows == 1:
-                axes.set_ylabel(r'$C_\ell$')
-                axes.set_xlabel(r'$\ell$')
-            else:
-                axes[1].set_ylabel(r'$C_\ell$')
-                axes[-1].set_xlabel(r'$\ell$')
+            ax.set_ylabel(r'$C_\ell$')
+            ax.set_xlabel(r'$\ell$')
             # title
             plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
             # save plot
@@ -629,15 +616,15 @@ if run_sbi:
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
                                subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
                                )
-            print(f'## done with the prior predictive check. time taken: {(time.time() - time0) / 60: .2f} min')
+            print(f'## done with the prior predictive check. time taken: {get_time_passed(time0=time0)}')
 
             # now run things for the posterior
             print(f'\n## running posterior predictive check ..')
             _ = torch.manual_seed(seed)
             # draw samples
             samples = posterior.sample(sample_shape=(nsamples,),
-                                            x=datavector
-                                            )
+                                       x=datavector
+                                       )
             # run helper
             _pred_check_helper(samples=samples, samples_tag='posterior', reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
@@ -646,13 +633,6 @@ if run_sbi:
             # time passed
             print(f'## all done. {get_time_passed(time0=time0)}')
             print('## ---')
-        # ---------------------------------------------
-        # helper for parallelizing sbc sample set up
-        def helper_sbc(theta):
-            return theory.get_prediction(param_dict={params_to_fit[i]: val for i,val in enumerate(np.array(theta))},
-                                         add_sample_variance=True,
-                                         sigma_to_use=sigma_sample_variance
-                                        )
         # ---------------------------------------------
         def run_sim_based_check(nsbc_runs, nsamples, seed, reanalyze):
             """
@@ -687,7 +667,7 @@ if run_sbi:
                     print(f'## reading in saved sbc samples from {fname}')
                     xs = pickle.load( open(f'{outdir}/{fname}', 'rb') )['xs']
             else:
-                xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc, thetas.numpy()),
+                xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc_ppc, thetas.numpy()),
                                              total=len( thetas.numpy())
                                             )
                                         )
@@ -761,7 +741,7 @@ if run_sbi:
                         nsamples=sbi_dict['pc_nsamples'],
                         datavector_param_dict=datavector_param_dict,
                         seed=sbi_dict['pc_seed'],
-                        subset_inds_to_plot=sbi_dict['pc_inds_for_pairplot'],
+                        subset_inds_to_plot=None,
                         reanalyze_checks=reanalyze_sbi_checks
                         )
         # sbc
