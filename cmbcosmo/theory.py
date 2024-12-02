@@ -135,6 +135,8 @@ class theory(object):
                                 scale=sigma_sample_var,
                                 size=len(mean)
                                 )
+                cls[cls<0] = np.nan
+
             if writetodisk:
                 np.savez_compressed(fname, cls=cls, ells=ells)
                 print(f'## saved cls in {fname}')
