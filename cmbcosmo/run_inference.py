@@ -39,7 +39,7 @@ parser.add_option('--reanalyze-sbi',
 parser.add_option('--reanalyze-sbi-checks',
                   action='store_true', dest='reanalyze_sbi_checks', default=False,
                   help='use to reanalyze sbi checks (using saved samples).')
-parser.add_option('--no-checks',
+parser.add_option('--no-sbi-checks',
                   action='store_true', dest='no_sbi_checks', default=False,
                   help='use to not run any sbi checks.')
 # ------------------------------------------------------------------------------
@@ -142,7 +142,7 @@ else:
 # set up ells
 ells = np.arange(lmin, lmax+1)
 # add a tag for the datavector
-datatag = f'lmin{lmin}_lmax{lmax}_{len(cls_to_consider)}spectra'
+datatag = f'lmin{lmin}_lmax{lmax}_BB-only'
 # -----------------------------------------------
 starts, nwalkers = None, None
 samples, outdirs = {}, {}
