@@ -13,13 +13,12 @@ datavector:
     cosmo: {'r': 0.04, 'Alens': 1.0}
     lmin_lmax: [5,300]
     fsky: 0.9
-    camb_params: {'H0': 67.32117, 'ombh2': 0.0223828,
-                  'omch2': 0.1201075, #mnu': 0.06,
-                  'omk': 0, #tau': 0.06,
-                  'As': 2.100549e-09,
-                  'ns':  0.9660499,
-                  'halofit_version': 'mead2016'
-                  }
+    camb_params: {
+        'ini': '/home/hawan/deepskies/cmbcosmo/runscripts/configs/planck_2018.ini',
+        'Init.power.At': 1,
+        'WantTensor': True,
+        'WantTransfer': False
+        }
 
 # inference details
 inference:

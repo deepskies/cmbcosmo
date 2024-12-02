@@ -100,11 +100,15 @@ class theory(object):
                 raise ValueError(f'## cls not saved to disk. rerun with writetodisk.')
         else:
             # set up camb
-            pars = camb.set_params(**self.camb_params)
+            pars = camb.read_ini(self.camb_params['ini'])
+            pars.WantTransfer = self.camb_params.get('WantTransfer', False)
+            pars.WantTensors = self.camb_params.get('WantTensors', True)
+            pars.InitPower.At = self.camb_params.get('InitPower.At', 1)
+            pars.set_for_lmax(self.lmax*2, lens_potential_accuracy=1)
+            # loop in base params
             pars.Alens = self.base_params['Alens']
             pars.InitPower.r = self.base_params['r']
-            pars.WantTensors = True
-            pars.set_for_lmax(self.lmax, lens_potential_accuracy=1)
+
             # now loop in input params
             if 'Alens' in param_dict:
                 pars.Alens = param_dict['Alens']
