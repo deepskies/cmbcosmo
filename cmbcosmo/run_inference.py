@@ -71,8 +71,8 @@ if run_sbi:
     from sbi.utils.user_input_checks import (
             check_sbi_inputs, process_prior, process_simulator,
             )
-    from sbi.analysis.plot import sbc_rank_plot
-    from sbi.diagnostics import check_sbc, run_sbc
+    from sbi.analysis.plot import sbc_rank_plot, plot_tarp
+    from sbi.diagnostics import check_sbc, run_sbc, check_tarp, run_tarp
     import pickle
     import torch
 # -----------------------------------------------
@@ -648,7 +648,8 @@ if run_sbi:
         # ---------------------------------------------
         def run_sim_based_check(nsbc_runs, nsamples, seed, reanalyze):
             """
-            run simulation based check
+            run simulation based check - and also tarp using the same
+            nsamples/samples.
 
             * nsbc_runs: int: number of runs for SBC
                             from documentation: should be ~100s or ideally 1000
@@ -725,6 +726,28 @@ if run_sbi:
                                     )
 
             # ------------------------------
+            # lets also include the tarp test
+            fname = f'sbi_tarp-output_{tag}.pickle'
+            if reanalyze and os.path.exists(f'{outdir}/{fname}'):
+                # read in
+                print(f'## reading in saved run_tarp output from {fname}\n')
+                out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+                ecp, alpha = out['ecp'], out['alpha']
+                out = []
+            else:
+                print(f'## running run_tarp ..')
+                ecp, alpha = run_tarp(thetas=thetas, xs=xs, posterior=posterior,
+                                    references=None,  # will be calculated automatically.
+                                    num_posterior_samples=nsamples)
+                # now save the data for later
+                pickle.dump({'ecp': ecp,
+                             'alpha': alpha
+                             }, open(f'{outdir}/{fname}', 'wb' ) )
+                print(f'\n## saved run_tarp output as {fname}\n')
+
+            print(f'## running check_tarp ..')
+            atc, ks_pval = check_tarp(ecp, alpha)
+            # ------------------------------
             # set up plots
             print(f'## working on plots ..')
             # title
@@ -765,6 +788,27 @@ if run_sbi:
             print('## saved %s' % fname )
             plt.close()
 
+            # ----------------
+            # now the tarp plot
+            # title
+            title = f"atc = {atc} ;\n"
+            title += f"ks_pval = {ks_pval}"
+
+            # tarp plot
+            f, ax = plot_tarp(ecp=ecp, alpha=alpha)
+            # update color .. and redo the legend
+            ax.lines[0].set_color('C0')
+            ax.legend()
+            # figsize
+            f.set_size_inches((npar*5, 5))
+            # add title
+            f.suptitle(title)
+            # save fig
+            fname = f'plot_tarp_{tag}.png'
+            plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+            print('## saved %s' % fname )
+            plt.close()
+            # ----------------
             # time passed:
             print(f'## all done. time taken: {get_time_passed(time0=time0)}')
             print('## ---')
