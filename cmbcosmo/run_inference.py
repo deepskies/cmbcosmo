@@ -433,6 +433,10 @@ if run_sbi:
     print('## ---')
     print(f'## setting up posterior ..')
     time0 = time.time()
+
+    ncpus = int(os.environ['SLURM_CPUS_PER_TASK'])
+    print(f'## working with ncpus = {ncpus}')
+
     fname = f'sbi_posterior_nsims{nsims}.pickle'
     if reanalyze_sbi:
         if not os.path.exists(f'{outdir}/{fname}'):
@@ -457,7 +461,8 @@ if run_sbi:
         theta, x = simulate_for_sbi(simulator=simulator,
                                     proposal=prior, num_simulations=nsims,
                                     seed=sbi_dict['infer_seed'],
-                                    show_progress_bar=True
+                                    show_progress_bar=True,
+                                    num_workers=ncpus
                                     )
         # pass sims to inference object
         inference = inference.append_simulations(theta=theta, x=x)
@@ -553,7 +558,11 @@ if run_sbi:
             else:
                 # lets parallelize
                 samples_ = samples.tolist()
-                x_pp = list(tqdm(Pool().imap(helper_sbc_ppc, samples_),
+                x_pp = list(
+                            tqdm(Pool().imap(
+                                            helper_sbc_ppc, samples_,
+                                            chunksize=int(len(samples_)/ncpus)
+                                            ),
                                 total=len(samples_)
                                 )
                             )
@@ -670,8 +679,14 @@ if run_sbi:
                     print(f'## reading in saved sbc samples from {fname}')
                     xs = pickle.load( open(f'{outdir}/{fname}', 'rb') )['xs']
             else:
-                xs = torch.FloatTensor(list(tqdm(Pool().map(helper_sbc_ppc, thetas.numpy()),
-                                             total=len( thetas.numpy())
+                samples_ = thetas.tolist()
+                xs = torch.FloatTensor(
+                                    list(
+                                        tqdm(Pool().imap(
+                                                        helper_sbc_ppc, samples_,
+                                                        chunksize=int(len(samples_)/ncpus)
+                                                        ),
+                                            total=len(samples_)
                                             )
                                         )
                                     )
@@ -694,7 +709,8 @@ if run_sbi:
                 ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
                                             posterior=posterior,
                                             num_posterior_samples=nsamples,
-                                            show_progress_bar=True
+                                            show_progress_bar=True,
+                                            num_workers=ncpus
                                             )
                 # now save the data for later
                 pickle.dump({'ranks': ranks,
