@@ -117,7 +117,7 @@ class theory(object):
             # now get the results
             results = camb.get_results(pars)
             # extract BB
-            cls = results.get_cmb_power_spectra(pars, CMB_unit='muK', spectra=['total'])['total'][self.lmin:self.lmax+1,2]
+            cls = results.get_total_cls(self.lmax, CMB_unit='muK')[self.lmin:self.lmax+1,2]
             # set up ells based on lmin, lmax
             ells = np.arange(self.lmin, self.lmax+1)
 

@@ -384,7 +384,7 @@ if run_mcmc:
     # burnin discarded
     plot_chainvals(chain_unflattened=sampler.get_chain(discard=burn_steps),
                     outdir=outdir, npar=npar, nsteps=nsteps-burn_steps,
-                    starts=starts, truths=truths, param_labels=param_labels,
+                    starts=None, truths=truths, param_labels=param_labels,
                     filetag='burn-discarded')
     backend, sampler = [], []
     print('# ----------')
@@ -890,7 +890,7 @@ for tech_tag in samples:
                              starts=starts, nwalkers=nwalkers,
                              color_starts='r',
                              showplot=False, savefig=True, fname=fname, outdir=outdir,
-                             get_bestfits=False, check_convergence=not debug,
+                             get_bestfits=False, check_convergence=False,
                              title=title
                             )
     # now replot with prior limits
@@ -902,7 +902,7 @@ for tech_tag in samples:
                        starts=starts, nwalkers=nwalkers,
                        color_starts='r',
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
-                       get_bestfits=False, check_convergence=not debug,
+                       get_bestfits=False, check_convergence=False,
                        param_ranges=param_priors,
                        title=title
                     )
