@@ -489,7 +489,7 @@ if run_sbi:
                                             )
         # ---------------------------------------------
         def _pred_check_helper(samples, samples_tag, datavector, datavector_param_dict,
-                               subset_inds_to_plot, reanalyze=False, additional_tag=None
+                               reanalyze=False, additional_tag=None
                                ):
             """
             helper function to deal with the various plots for the
@@ -504,11 +504,6 @@ if run_sbi:
             * samples_tag: str: tag for the samples: 'prior', 'posterior'
             * datavector: arr: datavector to compare against
             * datavector_param_dict: dict: dictionary used to generate datavector.
-            * subset_inds_to_plot: arr: indices to consider when plotting the cls
-                                        in the pairplot; more than 10 is likely
-                                        not a good idea. Could be None but beware
-                                        of runtime associated with plotting an
-                                        impossibly large plot.
             * additional_tag: str: any additional tags to be added to the outfiles'
                                 name. Default: None
             """
@@ -544,10 +539,7 @@ if run_sbi:
 
             # now generate data
             print(f'## starting data generation using the {samples_tag} samples ...')
-            if subset_inds_to_plot is None:
-                fname = f'sbi_ppc-samples_{samples_tag}-pred-check-all-ells{additional_tag}.pickle'
-            else:
-                fname = f'sbi_ppc-samples_{samples_tag}-pred-check-{len(subset_inds_to_plot)}ells{additional_tag}.pickle'
+            fname = f'sbi_ppc-samples_{samples_tag}-pred-check-all-ells{additional_tag}.pickle'
             if reanalyze:
                 if not os.path.exists(f'{outdir}/{fname}'):
                     raise ValueError(f'cant reanalyze ppc since {fname} not found in {outdir}.')
@@ -600,7 +592,7 @@ if run_sbi:
         # ---------------------------------------------
         def run_pred_checks(datavector, nsamples,
                             datavector_param_dict, seed,
-                            subset_inds_to_plot, reanalyze_checks
+                            reanalyze_checks
                             ):
             """
             run both prior and posterior predictive checks.
@@ -609,8 +601,6 @@ if run_sbi:
             * nsamples: int: nsamples to draw from prior/posterior for PPC
             * datavector_param_dict: dict: cosmo dict used for datavector
             * seed: int: seed to be used for generating samples
-            * subset_inds_to_plot: arr: indices to consider when plotting the cls
-                                        in the pairport; more than 10 is likely not a good idea.
 
             """
             print('## ---')
@@ -626,7 +616,7 @@ if run_sbi:
             # run helper
             _pred_check_helper(samples=samples, samples_tag='prior', reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
-                               subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
+                               additional_tag=seed_tag
                                )
             print(f'## done with the prior predictive check. time taken: {get_time_passed(time0=time0)}')
 
@@ -640,7 +630,7 @@ if run_sbi:
             # run helper
             _pred_check_helper(samples=samples, samples_tag='posterior', reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
-                               subset_inds_to_plot=subset_inds_to_plot, additional_tag=seed_tag
+                               additional_tag=seed_tag
                                )
             # time passed
             print(f'## all done. {get_time_passed(time0=time0)}')
@@ -818,7 +808,6 @@ if run_sbi:
                         nsamples=sbi_dict['pc_nsamples'],
                         datavector_param_dict=datavector_param_dict,
                         seed=sbi_dict['pc_seed'],
-                        subset_inds_to_plot=None,
                         reanalyze_checks=reanalyze_sbi_checks
                         )
         # sbc
