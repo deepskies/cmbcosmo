@@ -9,7 +9,6 @@ from cmbcosmo.theory import theory
 from cmbcosmo.helpers_misc import get_time_passed
 from cmbcosmo.settings import *
 from multiprocessing import Pool
-from tqdm import tqdm
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
@@ -464,12 +463,20 @@ if run_sbi:
                                     show_progress_bar=True,
                                     num_workers=ncpus
                                     )
+        # ---
+        # lets save the sims for later reuse
+        fname_sims = f'sbi_prior-sampled-sims_{nsims}sims_{sbi_dict["infer_seed"]}seed.pickle'
+        pickle.dump({'theta': theta, 'x': x}, open(f'{outdir}/{fname_sims}', 'wb'))
+        print(f'\n## saved prior-sampled sims as {fname}')
+        # ---
         # pass sims to inference object
         inference = inference.append_simulations(theta=theta, x=x)
         # now train the netwrok
         density_estimator = inference.train()
         # build posterior
         posterior = inference.build_posterior(density_estimator=density_estimator)
+        # lets also set the datavector
+        posterior.set_default_x(datavector)
         # now save the posterior for later
         pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
         print(f'\n## saved posterior as {outdir}/{fname}')
@@ -483,41 +490,73 @@ if run_sbi:
                                       ).cpu().detach().numpy()
 
     if not no_sbi_checks:
-        def helper_sbc_ppc(sample):
-                return theory.get_prediction(param_dict={f: sample[i] for i, f in enumerate(params_to_fit)},
-                                             add_sample_variance=True, sigma_to_use=sigma_sample_variance
-                                            )
         # ---------------------------------------------
-        def _pred_check_helper(samples, samples_tag, datavector, datavector_param_dict,
-                               reanalyze=False, additional_tag=None
+        def _pred_check_helper(nsamples, seed, proposal_tag, proposal,
+                               datavector, datavector_param_dict, reanalyze=False
                                ):
             """
-            helper function to deal with the various plots for the
+            helper function to deal with the plots for the
             predictive checks.
 
             note: have checked this code only with 1spectrum so will
             throw an error if trying to run it with >1 spectrum since
             that functionality is untested.
 
-            * samples: arr: array of samples from either the posterior
-                            or prior.
-            * samples_tag: str: tag for the samples: 'prior', 'posterior'
-            * datavector: arr: datavector to compare against
+            * nsamples: int: number of samples.
+            * seed: int: seed for the sims; applicable only when
+                         sims not read from disk.
+            * proposal_tag: str: tag for the samples: 'prior', 'posterior'.
+            * proposal: prior or posterior object.
+            * datavector: arr: datavector to compare against.
             * datavector_param_dict: dict: dictionary used to generate datavector.
-            * additional_tag: str: any additional tags to be added to the outfiles'
-                                name. Default: None
+            * reanalyze: bool: set to True to just re-do the plot without
+                               creating sims if pickle not present.
             """
-            # check to ensure that we're working with just one spectrum.
-            if len(cls_to_consider) > 1:
-                err = '## dont have the functionality to run this for more than 1spec:'
-                err += f' got: {len(cls_to_consider)}'
-                raise ValueError(err)
+            # lets check if there's data on disk - should be for prior-sampled
+            # sims given that they are used for inference.
+            fnames = [f for f in os.listdir(outdir) if f.endswith('pickle') and \
+                        f.startswith(f'sbi_{proposal_tag}-sampled-sims')]
+            print(f'## files found: {fnames}')
+            if len(fnames) > 0:
+                print(f'## found {len(fnames)} files with sims:\n{fnames}')
+                # check to ensure there's one file we're working with
+                if len(fnames) != 1:
+                    raise ValueError(f'## not sure why there are {len(fnames)} files.')
+                fname = fnames[0]
+                # need to make sure the file on disk has enough sims
+                nsamples_disk = int(fname.split('sampled-sims_')[-1].split('sims')[0])
+                print(f'## file on disk has {nsamples_disk} sims; pred check request ' +\
+                            f'for check with {nsamples} sims')
+                if nsamples_disk >= nsamples:
+                    # just read in the samples needed
+                    print(f'## reading in saved samples from {fname}')
+                    out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+                    theta, x  = out['theta'][:nsamples, :], out['x'][:nsamples, :]
+                else:
+                    # lets just throw an error since its weird to have a file on
+                    # disk with less sims than needed for ppc
+                    raise ValueError(f'## file on disk has less sims than we need. :(')
+            else:
+                if reanalyze:
+                    raise ValueError(f'## no sims file found when reanalyze = True.')
+                # need to generate sims from the given proposal (prior or posterior)
+                print(f'## generating {nsamples} sims samples from {proposal_tag}')
+                theta, x = simulate_for_sbi(simulator=simulator,
+                                            proposal=proposal,
+                                            num_simulations=nsamples,
+                                            seed=seed,
+                                            show_progress_bar=True,
+                                            num_workers=ncpus
+                                            )
+                # lets save the sims for later reuse
+                fname = f'sbi_{proposal_tag}-sampled-sims_{nsims}sims_{seed}seed.pickle'
+                # now save the data for later
+                pickle.dump({'theta': theta, 'x': x}, open(f'{outdir}/{fname}', 'wb'))
+                print(f'\n## saved {proposal_tag}-sampled sims as {fname}')
 
-            if additional_tag is None: additional_tag = ''
-            else: additional_tag = f'_{additional_tag}'
-            nsamples = len(samples)
+            # plots
             # pairplot to check what samples were drawn for PPC
-            _, axes = pairplot(samples=samples,
+            _, axes = pairplot(samples=theta,
                                upper='scatter',
                                labels=params_to_fit,
                                figsize=(npar * 2, npar * 2),
@@ -530,39 +569,12 @@ if run_sbi:
                     ax = axes[ind, ind]
                 ax.axvline(x=datavector_param_dict[par], color='k', ls='--', lw=2)
             # title
-            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
+            plt.suptitle(f'{proposal_tag} predictive check - {nsamples} nsamples')
             # save fig
-            fname = f'plot_{samples_tag}-pred-check_samples{additional_tag}.png'
+            fname = f'plot_{proposal_tag}-pred-check_samples.png'
             plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
             print('## saved %s' % fname )
             plt.close()
-
-            # now generate data
-            print(f'## starting data generation using the {samples_tag} samples ...')
-            fname = f'sbi_ppc-samples_{samples_tag}-pred-check-all-ells{additional_tag}.pickle'
-            if reanalyze:
-                if not os.path.exists(f'{outdir}/{fname}'):
-                    raise ValueError(f'cant reanalyze ppc since {fname} not found in {outdir}.')
-                else:
-                    # read in
-                    print(f'## reading in saved ppc samples from {fname}')
-                    x_pp = pickle.load( open(f'{outdir}/{fname}', 'rb') )['x_pp']
-            else:
-                # lets parallelize
-                samples_ = samples.tolist()
-                x_pp = list(
-                            tqdm(Pool().imap(
-                                            helper_sbc_ppc, samples_,
-                                            chunksize=int(len(samples_)/ncpus)
-                                            ),
-                                total=len(samples_)
-                                )
-                            )
-                # now save the data for later
-                pickle.dump({'samples': samples_,
-                             'x_pp': x_pp
-                             }, open(f'{outdir}/{fname}', 'wb' ) )
-                print(f'\n## saved ppc samples as {fname}')
 
             # lets plot of the spectra - this piece should work for >1 spectra type
             print(f'## working on the spectra plot ...')
@@ -571,8 +583,8 @@ if run_sbi:
             _, ax = plt.subplots(1, 1,)
             plt.subplots_adjust(hspace=0.5)
             # loop over the drawn samples
-            for i in range(len(x_pp)):
-                ax.loglog(ells, x_pp[i], '.-', color='C0', alpha=0.5)
+            for i in range(len(x)):
+                ax.loglog(ells, x[i], '.-', color='C0', alpha=0.5)
             # plot the data vector
             ax.loglog(ells, datavector, 'r.-', lw=0.75)
             # set title
@@ -581,9 +593,9 @@ if run_sbi:
             ax.set_ylabel(r'$C_\ell$')
             ax.set_xlabel(r'$\ell$')
             # title
-            plt.suptitle(f'{samples_tag} predictive check - {nsamples} nsamples')
+            plt.suptitle(f'{proposal_tag} predictive check - {nsamples} nsamples')
             # save plot
-            fname = f'plot_{samples_tag}-pred-check_datavector-vs-prediction{additional_tag}.png'
+            fname = f'plot_{proposal_tag}-pred-check_datavector-vs-prediction.png'
             plt.savefig(f'{outdir}/{fname}',
                         bbox_inches='tight', format='png')
             print('## saved %s' % fname)
@@ -606,31 +618,23 @@ if run_sbi:
             print('## ---')
             print(f'## running predictive checks with {nsamples} samples to be drawn ..')
             time0 = time.time()
-            seed_tag = f'seed{seed}forsampling'
             # run things for the prior
             print(f'\n## running prior predictive check ..')
-            # set the seed
-            _ = torch.manual_seed(seed)
-            # draw samples
-            samples = prior.sample(sample_shape=(nsamples,),)
             # run helper
-            _pred_check_helper(samples=samples, samples_tag='prior', reanalyze=reanalyze_checks,
+            _pred_check_helper(nsamples=nsamples, seed=seed,
+                               proposal_tag='prior', proposal=prior,
+                               reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
-                               additional_tag=seed_tag
                                )
             print(f'## done with the prior predictive check. time taken: {get_time_passed(time0=time0)}')
 
             # now run things for the posterior
             print(f'\n## running posterior predictive check ..')
-            _ = torch.manual_seed(seed)
-            # draw samples
-            samples = posterior.sample(sample_shape=(nsamples,),
-                                       x=datavector
-                                       )
             # run helper
-            _pred_check_helper(samples=samples, samples_tag='posterior', reanalyze=reanalyze_checks,
+            _pred_check_helper(nsamples=nsamples, seed=seed,
+                               proposal_tag='posterior', proposal=posterior,
+                               reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
-                               additional_tag=seed_tag
                                )
             # time passed
             print(f'## all done. {get_time_passed(time0=time0)}')
@@ -649,44 +653,33 @@ if run_sbi:
             print('## ---')
             print(f'## running simulation based check ..')
             time0 = time.time()
-
-            # generate ground truth parameters and corresponding simulated observations
-            # set seed
-            _ = torch.manual_seed(seed)
-            # sample from prior params for SBC
-            thetas = prior.sample((nsbc_runs,))
-            # now simulate "obervations"
-            print(f'## simulating observations ..')
-            # sbc params tag
-            tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples_{seed}seed'
-            fname = f'sbi_sbc-samples_{tag}.pickle'
-
-            # see if we need to read things from disk
-            if reanalyze:
-                if not os.path.exists(f'{outdir}/{fname}'):
-                    raise ValueError(f'cant reanalyze sbc since {fname} not found in {outdir}.')
+            # lets check if there's data on disk - should be given that the
+            # prior-sampled sims are used for inference and for ppc
+            fnames = [f for f in os.listdir(outdir) if f.endswith('pickle') and \
+                        f.startswith(f'sbi_prior-sampled-sims')]
+            if len(fnames) > 0:
+                print(f'## found {len(fnames)} files with sims:\n{fnames}')
+                # check to ensure there's one file we're working with
+                if len(fnames) != 1:
+                    raise ValueError(f'## not sure why there are {len(fnames)} files.')
+                fname = fnames[0]
+                # need to make sure the file on disk has enough sims
+                nsamples_disk = int(fname.split('sampled-sims_')[-1].split('sims')[0])
+                print(f'## file on disk has {nsamples_disk} sims; sbc request ' + \
+                            f'for check with {nsbc_runs} sims')
+                if nsamples_disk >= nsbc_runs:
+                    # just read in the samples needed
+                    print(f'## reading in saved samples from {fname}')
+                    out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+                    theta, x  = out['theta'][:nsbc_runs, :], out['x'][:nsbc_runs, :]
                 else:
-                    # read in
-                    print(f'## reading in saved sbc samples from {fname}')
-                    xs = pickle.load( open(f'{outdir}/{fname}', 'rb') )['xs']
+                    # lets just throw an error since its weird to have a file on
+                    # disk with less sims than needed for sbc
+                    raise ValueError(f'## file on disk has less sims than we need. :(')
             else:
-                samples_ = thetas.tolist()
-                xs = torch.FloatTensor(
-                                    list(
-                                        tqdm(Pool().imap(
-                                                        helper_sbc_ppc, samples_,
-                                                        chunksize=int(len(samples_)/ncpus)
-                                                        ),
-                                            total=len(samples_)
-                                            )
-                                        )
-                                    )
-                # now save the data for later
-                pickle.dump({'samples': thetas,
-                             'xs': xs
-                             }, open(f'{outdir}/{fname}', 'wb' ) )
-                print(f'\n## saved sbc samples as {fname}')
-
+                raise ValueError(f'## no prior-sampled sims on disk - why?')
+            # set up tag
+            tag = f'{nsbc_runs}sbcruns_{nsamples}postsamples'
             # run sbc now
             fname = f'sbi_sbc-ranks+_{tag}.pickle'
             if reanalyze and os.path.exists(f'{outdir}/{fname}'):
@@ -697,11 +690,13 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_sbc ..')
-                ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
+                print(f'## theta, x = {theta.shape}, {x.shape}')
+                ranks, dap_samples = run_sbc(thetas=theta, xs=x,
                                             posterior=posterior,
                                             num_posterior_samples=nsamples,
                                             show_progress_bar=True,
-                                            num_workers=ncpus
+                                            #num_workers=ncpus,
+                                            #use_batched_sampling=False
                                             )
                 # now save the data for later
                 pickle.dump({'ranks': ranks,
@@ -710,7 +705,7 @@ if run_sbi:
                 print(f'\n## saved run_sbc output as {fname}\n')
 
             print(f'## running check_sbc ..')
-            check_stats = check_sbc(ranks=ranks, prior_samples=thetas,
+            check_stats = check_sbc(ranks=ranks, prior_samples=theta,
                                     dap_samples=dap_samples,
                                     num_posterior_samples=nsamples
                                     )
@@ -726,9 +721,12 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_tarp ..')
-                ecp, alpha = run_tarp(thetas=thetas, xs=xs, posterior=posterior,
-                                    references=None,  # will be calculated automatically.
-                                    num_posterior_samples=nsamples)
+                ecp, alpha = run_tarp(thetas=theta, xs=x, posterior=posterior,
+                                      references=None,  # will be calculated automatically.
+                                      num_posterior_samples=nsamples,
+                                      #num_workers=ncpus,
+                                      #use_batched_sampling=False
+                                      )
                 # now save the data for later
                 pickle.dump({'ecp': ecp,
                              'alpha': alpha
