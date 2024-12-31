@@ -457,12 +457,14 @@ if run_sbi:
         # create inference object
         inference = NPE(prior=prior)
         # generate simulations
+        time1 = time.time()
         thetas, xs = simulate_for_sbi(simulator=simulator,
                                       proposal=prior, num_simulations=nsims,
                                       seed=sbi_dict['infer_seed'],
                                       show_progress_bar=True,
                                       num_workers=ncpus
                                       )
+        print(f'## time taken for sims: {get_time_passed(time0=time1)}')
         # ---
         # lets save the sims for later reuse
         fname_sims = f'sbi_prior-sampled-sims_{nsims}sims_{sbi_dict["infer_seed"]}seed.pickle'
@@ -472,15 +474,19 @@ if run_sbi:
         # pass sims to inference object
         inference = inference.append_simulations(theta=thetas, x=xs)
         # now train the netwrok
+        time1 = time.time()
         density_estimator = inference.train()
+        print(f'\n##time taken for training: {get_time_passed(time0=time1)}')
         # build posterior
+        time1 = time.time()
         posterior = inference.build_posterior(density_estimator=density_estimator)
+        print(f'## time taken for building posterior: {get_time_passed(time0=time1)}')
         # lets also set the datavector
         posterior.set_default_x(datavector)
         # now save the posterior for later
         pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
         print(f'\n## saved posterior as {outdir}/{fname}')
-    print(f'## time taken done. {get_time_passed(time0=time0)}')
+    print(f'## done. overall time taken: {get_time_passed(time0=time0)}')
     print('## ---')
     # get samples
     print(f'## getting samples ..')
@@ -541,6 +547,7 @@ if run_sbi:
                     raise ValueError(f'## no sims file found when reanalyze = True.')
                 # need to generate sims from the given proposal (prior or posterior)
                 print(f'## generating {nsamples} sims samples from {proposal_tag}')
+                time1 = time.time()
                 thetas, xs = simulate_for_sbi(simulator=simulator,
                                               proposal=proposal,
                                               num_simulations=nsamples,
@@ -548,6 +555,7 @@ if run_sbi:
                                               show_progress_bar=True,
                                               num_workers=ncpus
                                               )
+                print(f'## time taken for sims: {get_time_passed(time0=time1)}')
                 # lets save the sims for later reuse
                 fname = f'sbi_{proposal_tag}-sampled-sims_{nsims}sims_{seed}seed.pickle'
                 # now save the data for later
@@ -626,8 +634,9 @@ if run_sbi:
                                reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
                                )
-            print(f'## done with the prior predictive check. time taken: {get_time_passed(time0=time0)}')
+            print(f'## done with prior predictive check. time taken: {get_time_passed(time0=time0)}')
 
+            time1 = time.time()
             # now run things for the posterior
             print(f'\n## running posterior predictive check ..')
             # run helper
@@ -636,8 +645,9 @@ if run_sbi:
                                reanalyze=reanalyze_checks,
                                datavector=datavector, datavector_param_dict=datavector_param_dict,
                                )
+            print(f'## done with posterior predictive check. time taken: {get_time_passed(time0=time1)}')
             # time passed
-            print(f'## all done. {get_time_passed(time0=time0)}')
+            print(f'## all done with ppc checks. {get_time_passed(time0=time0)}')
             print('## ---')
         # ---------------------------------------------
         def run_sim_based_check(nsbc_runs, nsamples, seed, reanalyze):
@@ -690,6 +700,7 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_sbc ..')
+                time1 = time.time()
                 print(f'## thetas, xs = {thetas.shape}, {xs.shape}')
                 ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
                                              posterior=posterior,
@@ -698,6 +709,7 @@ if run_sbi:
                                              #num_workers=ncpus,
                                              #use_batched_sampling=False
                                              )
+                print(f'## time taken for run_sbc: {get_time_passed(time0=time1)}')
                 # now save the data for later
                 pickle.dump({'ranks': ranks,
                              'dap_samples': dap_samples
@@ -721,12 +733,14 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_tarp ..')
+                time1 = time.time()
                 ecp, alpha = run_tarp(thetas=thetas, xs=xs, posterior=posterior,
                                       references=None,  # will be calculated automatically.
                                       num_posterior_samples=nsamples,
                                       #num_workers=ncpus,
                                       #use_batched_sampling=False
                                       )
+                print(f'## time taken for run_tarp: {get_time_passed(time0=time1)}')
                 # now save the data for later
                 pickle.dump({'ecp': ecp,
                              'alpha': alpha
