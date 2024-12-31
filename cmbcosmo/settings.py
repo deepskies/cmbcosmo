@@ -20,9 +20,10 @@ for axis in ['x', 'y']:
 rcparams['xtick.top'] = True
 rcparams['ytick.right'] = True
 rcparams['text.usetex'] = True
-rcparams['font.family'] = 'serif'
-rcparams['font.serif'] = 'cm'
 
 # set up the plotting params
 for key in rcparams: mpl.rcParams[key] = rcparams[key]
-# ------------------------------------------------------------------------------
+
+# ignore matplotib user warnings
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')

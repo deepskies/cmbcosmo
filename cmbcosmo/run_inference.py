@@ -377,12 +377,12 @@ if run_mcmc:
     # save chainvals
     # full chain
     plot_chainvals(chain_unflattened=sampler.get_chain(),
-                    outdir=outdir, npar=npar, nsteps=nsteps,
+                    outdir=outdir, npar=npar,
                     starts=starts, truths=truths, param_labels=param_labels,
                     filetag='full-chain')
     # burnin discarded
     plot_chainvals(chain_unflattened=sampler.get_chain(discard=burn_steps),
-                    outdir=outdir, npar=npar, nsteps=nsteps-burn_steps,
+                    outdir=outdir, npar=npar,
                     starts=None, truths=truths, param_labels=param_labels,
                     filetag='burn-discarded')
     backend, sampler = [], []
@@ -426,7 +426,9 @@ if run_sbi:
 
         return theory.get_prediction(param_dict=param_dict,
                                      add_sample_variance=True,
-                                     sigma_to_use=sigma_sample_variance)
+                                     sigma_to_use=sigma_sample_variance,
+                                     writetodisk=False, readfromdisk=False
+                                     )
     # ---------------------------------------------
     # now set up posterior
     print('## ---')
@@ -462,6 +464,7 @@ if run_sbi:
                                       proposal=prior, num_simulations=nsims,
                                       seed=sbi_dict['infer_seed'],
                                       show_progress_bar=True,
+                                      simulation_batch_size=int(nsims/ncpus),
                                       num_workers=ncpus
                                       )
         print(f'## time taken for sims: {get_time_passed(time0=time1)}')
@@ -553,6 +556,7 @@ if run_sbi:
                                               num_simulations=nsamples,
                                               seed=seed,
                                               show_progress_bar=True,
+                                              simulation_batch_size=int(nsims/ncpus),
                                               num_workers=ncpus
                                               )
                 print(f'## time taken for sims: {get_time_passed(time0=time1)}')
@@ -802,7 +806,7 @@ if run_sbi:
             ax.lines[0].set_color('C0')
             ax.legend()
             # figsize
-            f.set_size_inches((npar*5, 5))
+            f.set_size_inches((5, 5))
             # add title
             f.suptitle(title)
             # save fig
@@ -815,6 +819,8 @@ if run_sbi:
             print(f'## all done. time taken: {get_time_passed(time0=time0)}')
             print('## ---')
 
+        # ---------------------------------------------
+        # ---------------------------------------------
         # run the predictive checks
         run_pred_checks(datavector=datavector,
                         nsamples=sbi_dict['pc_nsamples'],

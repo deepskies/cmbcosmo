@@ -1,5 +1,6 @@
 from cmbcosmo.settings import *
 from chainconsumer import ChainConsumer
+import numpy as np
 
 __all__ = ['plot_chainconsumer', 'plot_chainvals']
 # ------------------------------------------------------------------------------
@@ -126,7 +127,7 @@ def plot_chainconsumer(samples, truths, param_labels,
         return bestfit, bestfit_low, bestfit_upp
     # ---------------------------------------------
 # ------------------------------------------------------------------------------
-def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
+def plot_chainvals(chain_unflattened, outdir, npar,
                    starts, truths, param_labels, filetag=None):
     """
     Function to plot param values along the chains.
@@ -134,7 +135,6 @@ def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
     * chain_unflattened: arr: unflattended array
     * outdir: str: output directory
     * npar: int: number of params
-    * nsteps: int: int: number of steps
     * starts: arr: starting positions
     * truths: arr: truth values
     * param_labels: arr: parameter labels
@@ -145,17 +145,22 @@ def plot_chainvals(chain_unflattened, outdir, npar, nsteps,
     fig, axes = plt.subplots(npar, 1)
     plt.subplots_adjust(wspace=0.2, hspace=0.3)
 
-    delta = 0.01 * nsteps
+    nsteps = len(chain_unflattened[:, 0, 0])
+    # lets start the nsteps at 1
+    steps_arr = np.arange(1, nsteps+1)
+    # also lets extend the truth line(s) just a little bit
+    delta = 0.01 * nsteps       # 10% buffer
+    # loop over params
     for i in range(npar):
         if npar == 1: ax = axes
         else: ax = axes[i]
         # plot the chain
-        ax.plot(chain_unflattened[:, :, i])
-        xmax = nsteps
+        ax.plot(steps_arr, chain_unflattened[:, :, i])
         # add a line for the truth
-        ax.plot([0-delta, xmax+delta], [ truths[i], truths[i] ], 'k-.', lw=2, label='truth' )
+        ax.plot([1-delta, nsteps+delta], [ truths[i], truths[i] ], 'k-.', lw=2, label='truth' )
         # add a line for the starts
-        ax.plot([0], [ starts[:, i] ], 'x', color='#d62728' )
+        if starts is not None:
+            ax.plot([1], [ starts[:, i] ], 'x', color='#d62728' )
         # set up the ylabel
         ax.set_ylabel(r'%s' % param_labels[i])
 

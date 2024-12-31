@@ -154,7 +154,7 @@ class theory(object):
                     plt.title('WITH sample variance added to cls')
                 if plot_tag != '':
                     plot_tag = '_' + plot_tag
-                fname = f'plot_cls{plot_tag}_{self.data_tag}.png'
+                fname = f'plot_cls{plot_tag}_{self.data_tag}_{param_tag}.png'
                 plt.savefig(f'{self.outdir}/{fname}',
                             bbox_inches='tight', format='png')
                 print('# saved %s' % fname)
