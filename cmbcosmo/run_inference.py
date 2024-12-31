@@ -457,20 +457,20 @@ if run_sbi:
         # create inference object
         inference = NPE(prior=prior)
         # generate simulations
-        theta, x = simulate_for_sbi(simulator=simulator,
-                                    proposal=prior, num_simulations=nsims,
-                                    seed=sbi_dict['infer_seed'],
-                                    show_progress_bar=True,
-                                    num_workers=ncpus
-                                    )
+        thetas, xs = simulate_for_sbi(simulator=simulator,
+                                      proposal=prior, num_simulations=nsims,
+                                      seed=sbi_dict['infer_seed'],
+                                      show_progress_bar=True,
+                                      num_workers=ncpus
+                                      )
         # ---
         # lets save the sims for later reuse
         fname_sims = f'sbi_prior-sampled-sims_{nsims}sims_{sbi_dict["infer_seed"]}seed.pickle'
-        pickle.dump({'theta': theta, 'x': x}, open(f'{outdir}/{fname_sims}', 'wb'))
+        pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname_sims}', 'wb'))
         print(f'\n## saved prior-sampled sims as {fname}')
         # ---
         # pass sims to inference object
-        inference = inference.append_simulations(theta=theta, x=x)
+        inference = inference.append_simulations(theta=thetas, x=xs)
         # now train the netwrok
         density_estimator = inference.train()
         # build posterior
@@ -531,7 +531,7 @@ if run_sbi:
                     # just read in the samples needed
                     print(f'## reading in saved samples from {fname}')
                     out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
-                    theta, x  = out['theta'][:nsamples, :], out['x'][:nsamples, :]
+                    thetas, xs  = out['thetas'][:nsamples, :], out['xs'][:nsamples, :]
                 else:
                     # lets just throw an error since its weird to have a file on
                     # disk with less sims than needed for ppc
@@ -541,22 +541,22 @@ if run_sbi:
                     raise ValueError(f'## no sims file found when reanalyze = True.')
                 # need to generate sims from the given proposal (prior or posterior)
                 print(f'## generating {nsamples} sims samples from {proposal_tag}')
-                theta, x = simulate_for_sbi(simulator=simulator,
-                                            proposal=proposal,
-                                            num_simulations=nsamples,
-                                            seed=seed,
-                                            show_progress_bar=True,
-                                            num_workers=ncpus
-                                            )
+                thetas, xs = simulate_for_sbi(simulator=simulator,
+                                              proposal=proposal,
+                                              num_simulations=nsamples,
+                                              seed=seed,
+                                              show_progress_bar=True,
+                                              num_workers=ncpus
+                                              )
                 # lets save the sims for later reuse
                 fname = f'sbi_{proposal_tag}-sampled-sims_{nsims}sims_{seed}seed.pickle'
                 # now save the data for later
-                pickle.dump({'theta': theta, 'x': x}, open(f'{outdir}/{fname}', 'wb'))
+                pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname}', 'wb'))
                 print(f'\n## saved {proposal_tag}-sampled sims as {fname}')
 
             # plots
             # pairplot to check what samples were drawn for PPC
-            _, axes = pairplot(samples=theta,
+            _, axes = pairplot(samples=thetas,
                                upper='scatter',
                                labels=params_to_fit,
                                figsize=(npar * 2, npar * 2),
@@ -583,8 +583,8 @@ if run_sbi:
             _, ax = plt.subplots(1, 1,)
             plt.subplots_adjust(hspace=0.5)
             # loop over the drawn samples
-            for i in range(len(x)):
-                ax.loglog(ells, x[i], '.-', color='C0', alpha=0.5)
+            for i in range(len(xs)):
+                ax.loglog(ells, xs[i], '.-', color='C0', alpha=0.5)
             # plot the data vector
             ax.loglog(ells, datavector, 'r.-', lw=0.75)
             # set title
@@ -671,7 +671,7 @@ if run_sbi:
                     # just read in the samples needed
                     print(f'## reading in saved samples from {fname}')
                     out = pickle.load( open(f'{outdir}/{fname}', 'rb') )
-                    theta, x  = out['theta'][:nsbc_runs, :], out['x'][:nsbc_runs, :]
+                    thetas, xs  = out['thetas'][:nsbc_runs, :], out['xs'][:nsbc_runs, :]
                 else:
                     # lets just throw an error since its weird to have a file on
                     # disk with less sims than needed for sbc
@@ -690,14 +690,14 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_sbc ..')
-                print(f'## theta, x = {theta.shape}, {x.shape}')
-                ranks, dap_samples = run_sbc(thetas=theta, xs=x,
-                                            posterior=posterior,
-                                            num_posterior_samples=nsamples,
-                                            show_progress_bar=True,
-                                            #num_workers=ncpus,
-                                            #use_batched_sampling=False
-                                            )
+                print(f'## thetas, xs = {thetas.shape}, {xs.shape}')
+                ranks, dap_samples = run_sbc(thetas=thetas, xs=xs,
+                                             posterior=posterior,
+                                             num_posterior_samples=nsamples,
+                                             show_progress_bar=True,
+                                             #num_workers=ncpus,
+                                             #use_batched_sampling=False
+                                             )
                 # now save the data for later
                 pickle.dump({'ranks': ranks,
                              'dap_samples': dap_samples
@@ -705,7 +705,7 @@ if run_sbi:
                 print(f'\n## saved run_sbc output as {fname}\n')
 
             print(f'## running check_sbc ..')
-            check_stats = check_sbc(ranks=ranks, prior_samples=theta,
+            check_stats = check_sbc(ranks=ranks, prior_samples=thetas,
                                     dap_samples=dap_samples,
                                     num_posterior_samples=nsamples
                                     )
@@ -721,7 +721,7 @@ if run_sbi:
                 out = []
             else:
                 print(f'## running run_tarp ..')
-                ecp, alpha = run_tarp(thetas=theta, xs=x, posterior=posterior,
+                ecp, alpha = run_tarp(thetas=thetas, xs=xs, posterior=posterior,
                                       references=None,  # will be calculated automatically.
                                       num_posterior_samples=nsamples,
                                       #num_workers=ncpus,
