@@ -201,7 +201,7 @@ class theory(object):
             # set up ls
             ells = np.arange(self.lmin, self.lmax+1)
             # set up the cov
-            cls = self.get_prediction(param_dict=param_dict, add_sample_variance=True, sigma_to_use=None)
+            cls = self.get_prediction(param_dict=param_dict, add_sample_variance=False, sigma_to_use=None)
             # now set up the (diagonal) covariance with sample variance
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
             cov = np.diag( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
