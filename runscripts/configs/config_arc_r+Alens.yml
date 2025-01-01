@@ -31,13 +31,13 @@ inference:
         # random seed for the starting points
         randomseed_starts: 4627
         # chain details
-        nwalkers: 20
-        max_nsteps: 100
+        nwalkers: 70
+        max_nsteps: 1000
         # burnin criterion
         burnin_tau_factor: 3        # burnin = burnin_tau_factor * tau steps
         # following for convergence checks for early stopping
         check_every_nsteps: 50
-        convergence_ntau: 100       # convergence when chain is convergence_ntau * tau
+        convergence_ntau: 50        # convergence when chain is convergence_ntau * tau
         convergence_deltau: 0.01    # convergence when tau changes by < convergence_deltau
     # details re sbi
     sbi:
@@ -48,8 +48,7 @@ inference:
         # predictive checks (pc) related
         pc_nsamples: 500
         pc_seed: 10
-        pc_inds_for_pairplot: [0,1,2,3,4,10,15,20,25]
         # simulation based check (sbc) related
-        sbc_nruns: 1000
+        sbc_nruns: 500
         sbc_nsamples: 1000
         sbc_seed: 15
