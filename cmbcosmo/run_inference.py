@@ -262,43 +262,74 @@ if run_mcmc:
     # ---
     # set things up for checking covergence along the chain
     old_tau = np.inf
-    # array to hold auto corr times
-    stepnum, autocorr = [], []
+    converged = False
+    # file to hold auto corr times
+    autocorr_fname = f'{outdir}/autocorr.txt'
     # --
     # figure out where to start from
     if restart_mcmc:
         print('## resuming mcmc run ... ')
+        # lets get the last step from the backend
         nsteps_backend = backend.iteration
-        with Pool() as pool:
+        # lets first check if the run had converged in the last round
+        with open(autocorr_fname, 'r') as f:
+            lines = f.readlines()
+            if len(lines) > 0:
+                last_line = lines[-1]
+            else:
+                last_line = ''
+        if 'converged!' in last_line:
+            print('## no need to run any steps given that the chain converged before.')
             # set up the sampler
             sampler = emcee.EnsembleSampler(nwalkers, npar,
                                             get_logposterior,
                                             backend=backend,
-                                            pool=pool
                                             )
-            # run the chain
-            for sample in sampler.sample(backend.get_last_sample(),
-                                         iterations=nsteps_max-nsteps_backend,
-                                         progress=True):
-                # check convergence every N (user specified) steps
-                if sampler.iteration % check_every_nsteps:
-                    continue
+            converged = True
+        else:
+            # continue
+            print('## continuing with the run since last round didnt end with convergence.')
+            # lets get the last tau recorded
+            if last_line != '':
+                old_tau = np.genfromtxt(autocorr_fname, delimiter=',')[-1,1]
+            else:
+                old_tau = np.inf
+            print(f'## old_tau = {old_tau}')
+            with Pool() as pool:
+                # set up the sampler
+                sampler = emcee.EnsembleSampler(nwalkers, npar,
+                                                get_logposterior,
+                                                backend=backend,
+                                                pool=pool
+                                                )
+                # run the chain
+                for sample in sampler.sample(backend.get_last_sample(),
+                                            iterations=nsteps_max-nsteps_backend,
+                                            progress=True):
 
-                # get the autocorrelation time so far
-                # using tol=0 will give something even if its not perfect
-                tau = sampler.get_autocorr_time(tol=0)
-                autocorr.append(np.mean(tau))
-                stepnum.append(sampler.iteration)
+                    # check convergence every N (user specified) steps
+                    if sampler.iteration % check_every_nsteps:
+                        continue
 
-                # now look at the convergence
-                # first check if chain is N (user specified or 100) times estimated tau
-                converged = np.all(tau * convergence_ntau < sampler.iteration)
-                # also check if the estimated tau changes by the threshold
-                # (user specifif or 1%) or not
-                converged &= np.all(np.abs(old_tau - tau) / tau < convergence_deltau)
-                if converged:
-                    break
-                old_tau = tau
+                    # get the autocorrelation time so far
+                    # using tol=0 will give something even if its not perfect
+                    tau = sampler.get_autocorr_time(tol=0)
+                    # write to file
+                    autocorr_file = open(autocorr_fname, 'a')
+                    autocorr_file.write(f'{sampler.iteration}, {np.mean(tau)}\n')
+                    autocorr_file.close()
+                    # now look at the convergence
+                    # first check if chain is N (user specified or 100) times estimated tau
+                    converged = np.all(tau * convergence_ntau < sampler.iteration)
+                    # also check if the estimated tau changes by the threshold
+                    # (user specified or 1%) or not
+                    if converged:
+                        print(f'## tau that did it: {tau}')
+                        autocorr_file = open(autocorr_fname, 'a')
+                        autocorr_file.write(f'converged! with tau = {tau}')
+                        autocorr_file.close()
+                        break
+                    old_tau = tau
     else:
         print('## starting mcmc run ... ')
         backend.reset(nwalkers, npar)
@@ -319,19 +350,24 @@ if run_mcmc:
                 # get the autocorrelation time so far
                 # using tol=0 will give something even if its not perfect
                 tau = sampler.get_autocorr_time(tol=0)
-                autocorr.append(np.mean(tau))
-                stepnum.append(sampler.iteration)
-
+                # write to file
+                autocorr_file = open(autocorr_fname, 'a')
+                autocorr_file.write(f'{sampler.iteration}, {np.mean(tau)}\n')
+                autocorr_file.close()
                 # now look at the convergence
                 # first check if chain is N (user specified or 100) times estimated tau
                 converged = np.all(tau * convergence_ntau < sampler.iteration)
                 # also check if the estimated tau changes by the threshold
-                # (user specifif or 1%) or not
+                # (user specified or 1%) or not
                 converged &= np.all(np.abs(old_tau - tau) / tau < convergence_deltau)
                 if converged:
+                    print(f'## tau that did it: {tau}')
+                    autocorr_file = open(autocorr_fname, 'a')
+                    autocorr_file.write(f'converged! with tau = {tau}')
+                    autocorr_file.close()
                     break
                 old_tau = tau
-
+    # lets pull the nsteps from backend
     nsteps = backend.iteration
     # get autocorr time
     tau = sampler.get_autocorr_time(quiet=True)
@@ -355,24 +391,21 @@ if run_mcmc:
     samples['mcmc'] = sampler.get_chain(discard=burn_steps, flat=True)
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
 
-    # lets save autocorr and plot it, if applicable
-    if len(autocorr) > 0:
-        stepnum, autocorr = np.array(stepnum), np.array(autocorr)
-        # plot
-        plt.clf()
-        plt.plot(stepnum, autocorr, '.-')
-        plt.xlabel("number of steps")
-        plt.ylabel(r"mean $\hat{\tau}$")
-        # save fig
-        fname = f'plot_mcmc_autocorr_steps{nsteps_backend}-{nsteps}.png'
-        plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
-        print('## saved %s' % fname )
-        plt.close()
-
-        # lets also save autocorr array
-        fname = f'{outdir}/autocorr_steps{nsteps_backend}-{nsteps}.npz'
-        np.savez_compressed(fname, autocorr=autocorr, stepnum=stepnum)
-        print(f'## saved autcorr data in {fname}')
+    # lets plot the autocorr evolution now
+    if converged:
+        autocorr_data = np.genfromtxt(autocorr_fname, delimiter=',', skip_footer=1)
+    else:
+        autocorr_data = np.genfromtxt(autocorr_fname, delimiter=',')
+    # plot
+    plt.clf()
+    plt.plot(autocorr_data[:,0], autocorr_data[:,1], '.-')
+    plt.xlabel("number of steps")
+    plt.ylabel(r"mean $\hat{\tau}$")
+    # save fig
+    fname = f'plot_mcmc_autocorr_{int(autocorr_data[0,0])-check_every_nsteps}-{nsteps}steps.png'
+    plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+    print('## saved %s' % fname )
+    plt.close()
 
     # save chainvals
     # full chain
