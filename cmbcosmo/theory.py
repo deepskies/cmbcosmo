@@ -2,7 +2,7 @@ import camb
 from cmbcosmo.helpers_misc import flatten_data
 from cmbcosmo.settings import *
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import truncnorm
 import os
 # get theory predictions
 class theory(object):
@@ -130,12 +130,18 @@ class theory(object):
                 else:
                     sigma_sample_var = sigma_to_use
                 # now add random pick from a normal distribution with sigma being the sigma from sample variance
-                mean = np.zeros_like(cls)
-                cls += norm.rvs(loc=mean,
-                                scale=sigma_sample_var,
-                                size=len(mean)
-                                )
-                cls[cls<0] = np.nan
+                loc, scale = 0, sigma_sample_var
+                cls += truncnorm.rvs(loc=loc,
+                                     scale=scale,
+                                     a=(-cls-loc)/scale,
+                                     b=30,
+                                     )
+                if len(np.where( cls < 0)[0]) > 0:
+                    raise ValueError('## somethings wrong: have negative cls:\n' +
+                                     f'add_sample_variance = {add_sample_variance}\n' +
+                                     f'sigma_to_use = {sigma_to_use}\n' +
+                                     f'param_dict = {param_dict}\n'
+                                    )
 
             if writetodisk:
                 np.savez_compressed(fname, cls=cls, ells=ells)
