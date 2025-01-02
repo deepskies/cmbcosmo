@@ -41,6 +41,9 @@ parser.add_option('--reanalyze-sbi-checks',
 parser.add_option('--no-sbi-checks',
                   action='store_true', dest='no_sbi_checks', default=False,
                   help='use to not run any sbi checks.')
+parser.add_option('--embed',
+                  action='store_true', dest='embed', default=False,
+                  help='use an embedding network.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -58,6 +61,7 @@ restart_mcmc = options.restart_mcmc
 reanalyze_sbi = options.reanalyze_sbi
 reanalyze_sbi_checks = options.reanalyze_sbi_checks
 no_sbi_checks = options.no_sbi_checks
+embed = options.embed
 debug = options.debug
 # deal with imports
 if run_mcmc:
@@ -65,6 +69,8 @@ if run_mcmc:
     from helpers_plots import plot_chainvals
 if run_sbi:
     from sbi.analysis import pairplot
+    from sbi.neural_nets.embedding_nets import FCEmbedding
+    from sbi.neural_nets import posterior_nn
     from sbi.inference import NPE, simulate_for_sbi
     from sbi.utils import BoxUniform
     from sbi.utils.user_input_checks import (
@@ -431,6 +437,12 @@ if run_sbi:
     nsamples = sbi_dict['posterior_nsamples']
     # set up the outdir
     outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag'] + '_' + datatag
+    if embed:
+        embed_details = sbi_dict["embedding"]
+        outdir += f'_withembedding-{embed_details["outdim"]}outdim-' +  \
+                    f'{embed_details["nlayers"]}-nlayers-{embed_details["nhidden"]}-nhidden'
+    else:
+        outdir += '_noembedding'
     if debug:
         outdir = f'debug_{outdir}'
     outdir = config_data['paths']['outdir'] + outdir
@@ -489,9 +501,21 @@ if run_sbi:
                                       )
         # check prior, simulator
         check_sbi_inputs(simulator=simulator, prior=prior)
-        # create inference object
-        inference = NPE(prior=prior)
-        # generate simulations
+        if embed:
+            # set up the embedding network
+            embedding_net = FCEmbedding(input_dim=nells,
+                                        output_dim=embed_details['outdim'],
+                                        num_layers=embed_details['nlayers'],
+                                        num_hiddens=embed_details['nhidden'],
+                                        )
+            # instantiate the conditional neural density estimator
+            neural_posterior = posterior_nn(model="maf", embedding_net=embedding_net)
+            # create inference object
+            inference = NPE(prior=prior, density_estimator=neural_posterior)
+        else:
+            # create inference object
+            inference = NPE(prior=prior)
+        # generate simulations - using samples from prior
         time1 = time.time()
         thetas, xs = simulate_for_sbi(simulator=simulator,
                                       proposal=prior, num_simulations=nsims,

@@ -42,8 +42,16 @@ inference:
         convergence_deltau: 0.01    # convergence when tau changes by < convergence_deltau
     # details re sbi
     sbi:
+        # sims related
         infer_nsims: 1000
         infer_seed: 214
+        # embedding params; applicable only if embed (user flag) is used
+        embedding:
+            # input_dim will be nells
+            outdim: 20
+            nlayers: 2
+            nhidden: 50
+        # sampling related
         posterior_nsamples: 1000
         sampling_seed: 1425
         # predictive checks (pc) related
