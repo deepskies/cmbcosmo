@@ -2,6 +2,8 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+plt.style.use('default')
+
 fontsize = 18
 rcparams = {}
 rcparams['figure.figsize'] = (10, 6)

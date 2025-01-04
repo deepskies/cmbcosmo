@@ -486,22 +486,31 @@ if run_sbi:
                                      writetodisk=False, readfromdisk=False
                                      )
     # ---------------------------------------------
-    # now set up posterior
+    # now do inference and build posterior
     print('## ---')
-    print(f'## setting up posterior ..')
+    print(f'## setting up inference and building posterior ..')
     time0 = time.time()
 
     ncpus = int(os.environ['SLURM_CPUS_PER_TASK'])
     print(f'## working with ncpus = {ncpus}')
 
-    fname = f'sbi_posterior_nsims{nsims}.pickle'
+    posterior_fname = f'sbi_posterior_nsims{nsims}.pickle'
     if reanalyze_sbi:
-        if not os.path.exists(f'{outdir}/{fname}'):
-            raise ValueError(f'cant restart since {fname} not found in {outdir}.')
+        if not os.path.exists(f'{outdir}/{posterior_fname}'):
+            raise ValueError(f'cant restart since {posterior_fname} not found in {outdir}.')
         else:
             # read in
-            print(f'## reading in saved posteriors from {outdir}/{fname}')
-            posterior = pickle.load( open(f'{outdir}/{fname}', 'rb') )
+            print(f'## reading in saved posteriors from {outdir}/{posterior_fname}')
+            posterior = pickle.load( open(f'{outdir}/{posterior_fname}', 'rb') )
+
+            # lets process prior and simulator just to ensure they are good to go
+            # check prior
+            prior, num_parameters, prior_returns_numpy = process_prior(prior=prior)
+            # check simulator
+            simulator = process_simulator(user_simulator=simulator,
+                                          prior=prior,
+                                          is_numpy_simulator=prior_returns_numpy
+                                          )
     else:
         # check prior
         prior, num_parameters, prior_returns_numpy = process_prior(prior=prior)
@@ -526,7 +535,7 @@ if run_sbi:
         # lets save the sims for later reuse
         fname_sims = f'sbi_prior-sampled-sims_{nsims}sims_{sbi_dict["infer_seed"]}seed.pickle'
         pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname_sims}', 'wb'))
-        print(f'\n## saved prior-sampled sims as {fname}')
+        print(f'\n## saved prior-sampled sims as {fname_sims}')
         # ---
         # inference setup
         if embed:
@@ -641,7 +650,7 @@ if run_sbi:
         # now train the netwrok
         time1 = time.time()
         density_estimator = inference.train()
-        print(f'\n##time taken for training: {get_time_passed(time0=time1)}')
+        print(f'\n## time taken for training: {get_time_passed(time0=time1)}')
         # build posterior
         time1 = time.time()
         posterior = inference.build_posterior(density_estimator=density_estimator)
@@ -649,8 +658,8 @@ if run_sbi:
         # lets also set the datavector
         posterior.set_default_x(datavector)
         # now save the posterior for later
-        pickle.dump(posterior, open(f'{outdir}/{fname}', 'wb' ) )
-        print(f'\n## saved posterior as {outdir}/{fname}')
+        pickle.dump(posterior, open(f'{outdir}/{posterior_fname}', 'wb' ) )
+        print(f'\n## saved posterior as {outdir}/{posterior_fname}')
     print(f'## done. overall time taken: {get_time_passed(time0=time0)}')
     print('## ---')
     # get samples
@@ -813,7 +822,7 @@ if run_sbi:
                                )
             print(f'## done with posterior predictive check. time taken: {get_time_passed(time0=time1)}')
             # time passed
-            print(f'## all done with ppc checks. {get_time_passed(time0=time0)}')
+            print(f'\n## all done with ppc checks. {get_time_passed(time0=time0)}')
             print('## ---')
         # ---------------------------------------------
         def run_sim_based_check(nsbc_runs, nsamples, seed, reanalyze):
