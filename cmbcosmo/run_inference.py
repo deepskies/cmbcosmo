@@ -44,6 +44,9 @@ parser.add_option('--no-sbi-checks',
 parser.add_option('--embed',
                   action='store_true', dest='embed', default=False,
                   help='use an embedding network.')
+parser.add_option('--optimize-embed',
+                  action='store_true', dest='embed_optimized', default=False,
+                  help='optimize the hyperparams for the embedding network.')
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -62,6 +65,7 @@ reanalyze_sbi = options.reanalyze_sbi
 reanalyze_sbi_checks = options.reanalyze_sbi_checks
 no_sbi_checks = options.no_sbi_checks
 embed = options.embed
+embed_optimized = options.embed_optimized
 debug = options.debug
 # deal with imports
 if run_mcmc:
@@ -80,6 +84,8 @@ if run_sbi:
     from sbi.diagnostics import check_sbc, run_sbc, check_tarp, run_tarp
     import pickle
     import torch
+    from sklearn.model_selection import train_test_split
+    import optuna
 # -----------------------------------------------
 # set up the config
 config_data = setup_config(config_path=config_path)
@@ -92,6 +98,7 @@ if debug:
     config_data['inference']['sbi']['pc_nsamples'] = 5
     config_data['inference']['sbi']['sbc_nruns'] = 10
     config_data['inference']['sbi']['sbc_nsamples'] = 5
+    config_data['inference']['sbi']['embedding']['optimization_params']['ntrials'] = 5
 # now pull some things from the config
 params_to_fit = config_data['inference']['params_to_fit']
 param_labels = config_data['inference']['param_labels']
@@ -439,8 +446,12 @@ if run_sbi:
     outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag'] + '_' + datatag
     if embed:
         embed_details = sbi_dict["embedding"]
-        outdir += f'_withembedding-{embed_details["outdim"]}outdim-' +  \
-                    f'{embed_details["nlayers"]}-nlayers-{embed_details["nhidden"]}-nhidden'
+        if embed_optimized:
+            outdir += f'_withembedding-optimized'
+        else:
+            embedding_params = embed_details['embedding_params']
+            outdir += f'_withembedding-{embedding_params["outdim"]}outdim-' +  \
+                    f'{embedding_params["nlayers"]}-nlayers-{embedding_params["nhidden"]}-nhidden'
     else:
         outdir += '_noembedding'
     if debug:
@@ -501,20 +512,6 @@ if run_sbi:
                                       )
         # check prior, simulator
         check_sbi_inputs(simulator=simulator, prior=prior)
-        if embed:
-            # set up the embedding network
-            embedding_net = FCEmbedding(input_dim=nells,
-                                        output_dim=embed_details['outdim'],
-                                        num_layers=embed_details['nlayers'],
-                                        num_hiddens=embed_details['nhidden'],
-                                        )
-            # instantiate the conditional neural density estimator
-            neural_posterior = posterior_nn(model="maf", embedding_net=embedding_net)
-            # create inference object
-            inference = NPE(prior=prior, density_estimator=neural_posterior)
-        else:
-            # create inference object
-            inference = NPE(prior=prior)
         # generate simulations - using samples from prior
         time1 = time.time()
         thetas, xs = simulate_for_sbi(simulator=simulator,
@@ -531,6 +528,114 @@ if run_sbi:
         pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname_sims}', 'wb'))
         print(f'\n## saved prior-sampled sims as {fname}')
         # ---
+        # inference setup
+        if embed:
+            time1 = time.time()
+            if embed_optimized:
+                # lets first see if there's a study done already
+                study_fname = 'optuna_study.pickle'
+                if os.path.exists(f'{outdir}/{study_fname}'):
+                    print(f'## reading in already saved hyperparameter study: {study_fname}')
+                    study = pickle.load(open(f'{outdir}/{study_fname}', 'rb'))['study']
+                else:
+                    # do the optimization
+                    embed_opt_details = embed_details['optimization_params']
+                    # for now, lets just use the sims we use for inference
+                    # split between train and test
+                    thetas_train, thetas_test, xs_train, xs_test = train_test_split(thetas, xs,
+                                                                                    test_size=embed_opt_details['testsize'],
+                                                                                    random_state=42
+                                                                                    )
+                    # now define the objective function
+                    # but first full the hyperparam ranges
+                    outdim_range = embed_opt_details['outdim_range']
+                    nlayers_range = embed_opt_details['nlayers_range']
+                    nhidden_range = embed_opt_details['nhidden_range']
+                    print(f'## working with\noutdim_range = {outdim_range}' +
+                          f'\nnlayers_range = {nlayers_range}' +
+                          f'\nnhidden_range = {nhidden_range}'
+                          )
+                    # ---
+                    def objective(trial):
+                        # hyperparameters to optimize - nespecify ranges
+                        output_dim = trial.suggest_int("outdim", outdim_range[0], outdim_range[1])
+                        num_layers = trial.suggest_int("nlayers", nlayers_range[0], nlayers_range[1])
+                        num_hiddens = trial.suggest_int("nhidden", nhidden_range[0], nhidden_range[1])
+                        # set up the embedding network
+                        embedding_net = FCEmbedding(input_dim=nells,
+                                                    output_dim=output_dim,
+                                                    num_layers=num_layers,
+                                                    num_hiddens=num_hiddens,
+                                                    )
+
+                        # instantiate the conditional neural density estimator
+                        neural_posterior = posterior_nn(model="maf", embedding_net=embedding_net)
+                        # create inference object
+                        inference = NPE(prior=prior, density_estimator=neural_posterior)
+                        # append sims
+                        inference = inference.append_simulations(theta=thetas_train, x=xs_train)
+                        # now train the netwrok
+                        density_estimator = inference.train()
+                        # build posterior
+                        posterior = inference.build_posterior(density_estimator=density_estimator)
+
+                        # return loglk - which we'd want to minimize
+                        return -torch.mean(torch.tensor([posterior.log_prob(theta_i, x=x_i) for theta_i, x_i in zip(thetas_test, xs_test)]))
+                    # ---
+                    # start optimization
+                    print(f'\n## starting hyperparameter optimization ...')
+                    study = optuna.create_study(direction="minimize")
+                    study.optimize(objective, n_trials=embed_opt_details['ntrials'])
+                    print(f'\n## hyperparameter optimization done.')
+                    # lets save the study for later
+                    pickle.dump({'study': study}, open(f'{outdir}/{study_fname}', 'wb'))
+                    print(f'## saved hyperparameter study as {study_fname}')
+
+                    # lets also save some plots
+                    plt.clf()
+                    fname = 'optuna_plot_param_importances.png'
+                    optuna.visualization.matplotlib.plot_param_importances(study)
+                    plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+                    print('## saved %s' % fname )
+                    plt.close()
+
+                    plt.clf()
+                    fname = 'optuna_plot_slice.png'
+                    optuna.visualization.matplotlib.plot_slice(study)
+                    plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+                    print('## saved %s' % fname )
+                    plt.close()
+
+                    plt.clf()
+                    fname = 'optuna_plot_optimization_history.png'
+                    optuna.visualization.matplotlib.plot_optimization_history(study)
+                    plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
+                    print('## saved %s' % fname )
+                    plt.close()
+
+                    # lets reset the plot settings since the optuna plots change things
+                    mpl.rcdefaults()
+                    # set up the plotting params
+                    for key in rcparams: mpl.rcParams[key] = rcparams[key]
+
+                # get the best hyperparams
+                embedding_params = study.best_params
+                print(f'## best hyperparams: {embedding_params}')
+                print(f'## time taken for hyperparameter optimization: {get_time_passed(time0=time1)}\n')
+            # -----
+            # set up the embedding network
+            embedding_net = FCEmbedding(input_dim=nells,
+                                        output_dim=embedding_params['outdim'],
+                                        num_layers=embedding_params['nlayers'],
+                                        num_hiddens=embedding_params['nhidden']
+                                        )
+            # instantiate the conditional neural density estimator
+            neural_posterior = posterior_nn(model="maf", embedding_net=embedding_net)
+            # create inference object
+            inference = NPE(prior=prior, density_estimator=neural_posterior)
+        else:
+            # create inference object
+            inference = NPE(prior=prior)
         # pass sims to inference object
         inference = inference.append_simulations(theta=thetas, x=xs)
         # now train the netwrok

@@ -46,10 +46,19 @@ inference:
         infer_seed: 214
         # embedding params; applicable only if embed (user flag) is used
         embedding:
-            # input_dim will be nells
-            outdim: 20
-            nlayers: 2
-            nhidden: 50
+            # input_dim will be nells, based on lmin, lmax
+            # optimization params: applicable if optimize-embed (user flag) is used
+            optimization_params:
+                testsize: 0.3   # relative size of test
+                ntrials: 100
+                outdim_range: [5, 100]
+                nlayers_range: [1, 15]
+                nhidden_range: [10, 100]
+            # embedding hyperparams to be used if the params are not optimized
+            embedding_params:
+                outdim: 20
+                nlayers: 2
+                nhidden: 50
         # sampling related
         posterior_nsamples: 1000
         sampling_seed: 1425
