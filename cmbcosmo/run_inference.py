@@ -9,6 +9,7 @@ from cmbcosmo.theory import theory
 from cmbcosmo.helpers_misc import get_time_passed
 from cmbcosmo.settings import *
 from multiprocessing import Pool
+from helpers_plots import plot_posteriors
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
@@ -157,7 +158,7 @@ ells = np.arange(lmin, lmax+1)
 datatag = f'lmin{lmin}_lmax{lmax}_BB-only'
 # -----------------------------------------------
 starts, nwalkers = None, None
-samples, outdirs = {}, {}
+samples, loglikes, outdirs = {}, {}, {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
     time0 = time.time()
@@ -401,7 +402,8 @@ if run_mcmc:
             raise ValueError(f'## need to run longer chain - tau is {nsteps_to_forget};' +
                              f'so cant discard 3x = {burn_steps} if chain is {nsteps} steps.')
     # get samples
-    samples['mcmc'] = sampler.get_chain(discard=burn_steps, flat=True)
+    samples['mcmc'] = sampler.get_chain(discard=burn_steps)
+    loglikes['mcmc'] = sampler.get_log_prob(discard=burn_steps)
     print(f'\n## time taken: {get_time_passed(time0=time0)}')
 
     # lets plot the autocorr evolution now
@@ -668,6 +670,7 @@ if run_sbi:
     samples['sbi'] = posterior.sample(sample_shape=(nsamples,),
                                       x=datavector
                                       ).cpu().detach().numpy()
+    loglikes['sbi'] = None
 
     if not no_sbi_checks:
         # ---------------------------------------------
@@ -1016,13 +1019,12 @@ if not run_mcmc and not run_sbi:
 
 print(f'\n## processing results (if applicable) .. \n')
 # now plot things
-from helpers_plots import plot_chainconsumer
 for tech_tag in samples:
     outdir = outdirs[tech_tag]
     # --
     # not saving this plot just yet
-    fname = f'plot_{tech_tag}_chainconsumer.png'
-    out = plot_chainconsumer(samples=samples[tech_tag],
+    fname = f'plot_{tech_tag}_posteriors.png'
+    out = plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=None,
@@ -1031,7 +1033,7 @@ for tech_tag in samples:
                              showplot=False, savefig=False, fname=fname, outdir=outdir,
                              get_bestfits=True, check_convergence=not debug
                             )
-    bestfit, bestfit_low, bestfit_upp = out
+    bestfit, bestfit_sigma = out
     # --
     # set up the chi2
     # first need to get the cls (stacked)
@@ -1039,8 +1041,8 @@ for tech_tag in samples:
                                        add_sample_variance=False
                                        )
     bestfit_dict = {key: bestfit[i] for i,key in enumerate(params_to_fit)}
-    bestfit_lower_dict = {key: bestfit[i]-bestfit_low[i] for i,key in enumerate(params_to_fit)}
-    bestfit_upper_dict = {key: bestfit[i]+bestfit_upp[i] for i,key in enumerate(params_to_fit)}
+    bestfit_lower_dict = {key: bestfit[i]-bestfit_sigma[i] for i,key in enumerate(params_to_fit)}
+    bestfit_upper_dict = {key: bestfit[i]+bestfit_sigma[i] for i,key in enumerate(params_to_fit)}
     # adding any missing params
     # need to make sure that everything else is the same as for the
     # datavector except the params to fit
@@ -1061,7 +1063,7 @@ for tech_tag in samples:
     title = r'$\chi^2_{data}$ = ' + f'{chi2:.2f}' + f'; / ndof ({ndof}) = {chi2/ndof:.2f}'
     # --
     # now plot above, with the title - and save
-    out = plot_chainconsumer(samples=samples[tech_tag],
+    out = plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=None,
@@ -1072,8 +1074,8 @@ for tech_tag in samples:
                              title=title
                             )
     # now replot with prior limits
-    fname = f'plot_{tech_tag}_chainconsumer_prior-limited-ranges.png'
-    plot_chainconsumer(samples=samples[tech_tag],
+    fname = f'plot_{tech_tag}_posteriors_prior-limited-ranges.png'
+    plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                        truths=truths,
                        param_labels=param_labels,
                        color_posterior=None, color_truth=None,
@@ -1087,7 +1089,7 @@ for tech_tag in samples:
     print(f'\n## {tech_tag}')
     print('## bestfits vs truth')
     for i in range(npar):
-        print(f'{param_labels[i]}: {bestfit[i]:.2f}^{bestfit_upp[i]:.2f}_{bestfit_low[i]:.2f} vs {truths[i]:.2f}')
+        print(f'{param_labels[i]}: {bestfit[i]:.2f} +/- {bestfit_sigma[i]:.2f} vs {truths[i]:.2f}')
 
     # bestfit cls - and relative residuals
     datavector = theory.get_prediction(param_dict=datavector_param_dict,
@@ -1114,10 +1116,9 @@ for tech_tag in samples:
         if key in params_to_fit:
             # i.e. we have a fit
             key_ = r'$\textbf{%s}$' % key
-            bestfit_label += key_ + r': $%.2f^{+%.2f}_{-%.2f}$, ' % (bestfit_dict[key],
-                                                                     bestfit_upper_dict[key] - bestfit_dict[key],
-                                                                     bestfit_dict[key] - bestfit_lower_dict[key],
-                                                                    )
+            bestfit_label += key_ + r': $%.2f\pm{%.2f}$, ' % (bestfit_dict[key],
+                                                              bestfit_upper_dict[key] - bestfit_dict[key]
+                                                              )
         else:
             # i.e. we have the truth value
             bestfit_label += key + f': {bestfit_dict[key]:.2f}, '

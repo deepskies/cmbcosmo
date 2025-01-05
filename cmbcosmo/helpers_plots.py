@@ -1,10 +1,11 @@
 from cmbcosmo.settings import *
-from chainconsumer import ChainConsumer
+from getdist import plots as gdplots
+from getdist import MCSamples as gdsamples
 import numpy as np
 
-__all__ = ['plot_chainconsumer', 'plot_chainvals']
+__all__ = ['plot_posteriors', 'plot_chainvals']
 # ------------------------------------------------------------------------------
-def plot_chainconsumer(samples, truths, param_labels,
+def plot_posteriors(samples, loglikes, truths, param_labels,
                        color_posterior, color_truth,
                        starts=None, nwalkers=None, color_starts='r',
                        showplot=False, savefig=False,
@@ -18,7 +19,9 @@ def plot_chainconsumer(samples, truths, param_labels,
 
     Required inputs
     ---------------
-    * samples: arr: samples to plot
+    * samples: arr: samples to plot; could be flattened or not; unflattened
+                    needed to check convergence.
+    * loglikes: arr: loglikehood values; used for checking convergence.
     * truths: arr: truth values
     * param_labels: arr: labels for the parameters constrained
     * color_posterior: str: color for posterior; could be None
@@ -56,27 +59,76 @@ def plot_chainconsumer(samples, truths, param_labels,
             raise ValueError('must specify fname and outdir when savefig=True.')
     # get nparameters
     npar = len(param_labels)
+    # set up the getdist samples
+    gdsample = gdsamples(samples=samples, names=param_labels, loglikes=loglikes)
+
     # set up the plot
     plt.clf()
-    # set up the chainconsumer object
-    c = ChainConsumer()
-    # add chain
-    c.add_chain(samples, parameters=param_labels,
-                color=color_posterior, walkers=nwalkers)
-    c.configure(statistics='mean', summary=False,
-                label_font_size=20, tick_font_size=16,
-                usetex=True, serif=False,
-                )
-    # add truth
-    c.configure_truth(color=color_truth)
-    # plot
-    fig = c.plotter.plot(truth=truths, parameters=param_labels,
-                         extents=param_ranges,
-                         figsize=(2*npar, 2*npar)
-                         )
-    # get the axes to turn off the grid
-    ax_list = fig.axes
-    for ax in ax_list: ax.grid(False)
+    g = gdplots.get_subplot_plotter()
+    g.settings.fontsize = 20
+    g.settings.linewidth = 2
+    g.settings.axes_fontsize = 16
+    g.settings.axes_labelsize = 20
+    g.settings.alpha_filled_add = 0.75
+    g.settings.alpha_factor_contour_lines = 1
+    g.settings.lw_contour = 1
+    g.settings.norm_1d_density = True
+    g.triangle_plot(gdsample,
+                    filled=True,
+                    params=param_labels,
+                    contour_colors=color_posterior
+                    )
+    # access the figure
+    fig = plt.gcf()
+    # add plot details
+    for nrow in range(npar):
+        for ncol in range(npar):
+            ax = g.subplots[nrow, ncol]
+            if nrow == ncol:
+                # get confidence interval under the curve
+                dens = gdsample.get1DDensity(param_labels[nrow])
+                lb = gdsample.confidence(nrow, 0.16)
+                ub = gdsample.confidence(nrow, 0.16, upper=True)
+                ax.fill_between(dens.x, dens.P, where=(dens.x > lb) & (dens.x < ub), alpha=0.25)
+
+            # deal with the grid
+            if ax is not None:
+                ax.grid(False)
+
+    # deal with the truths
+    if truths is not None:
+        ls = '--'
+        for nrow in range(npar):
+            for ncol in range(npar):
+                ax = g.subplots[nrow, ncol]
+                if ax is not None:
+                    # deal with the truth lines
+                    if nrow == ncol:
+                        ax.axvline(x=truths[ncol], color=color_truth, ls=ls)
+                    else:
+                        ax.axvline(x=truths[ncol], color=color_truth, ls=ls)
+                        ax.axhline(y=truths[nrow], color=color_truth, ls=ls)
+
+    # deal with the starts
+    if starts is not None:
+        for nrow in range(npar):
+            for ncol in range(npar):
+                ax = g.subplots[nrow, ncol]
+                if ax is not None:
+                    if nrow != ncol:
+                        ax.plot(starts[:, ncol], starts[:, nrow], '+', color=color_starts)
+
+    # now deal with the lims
+    if param_ranges is not None:
+        for nrow in range(npar):
+            for ncol in range(npar):
+                ax = g.subplots[nrow, ncol]
+                if ax is not None:
+                    if nrow == ncol:
+                        ax.set_xlim(param_ranges[ncol])
+                    else:
+                        ax.set_xlim(param_ranges[ncol])
+                        ax.set_ylim(param_ranges[nrow])
 
     if title is not None:
         if npar == 1:
@@ -84,12 +136,7 @@ def plot_chainconsumer(samples, truths, param_labels,
         else:
             y = 1.05
         plt.suptitle(title, y=y) # need a better way to determine the y value
-
-    # plot starts if specified
-    if starts is not None:
-        for nrow in range(npar):
-            for ncol in range(nrow):
-                ax_list[npar * nrow + ncol].plot(starts[:, ncol], starts[:, nrow], '+', color=color_starts)
+    fig.set_size_inches((2*npar, 2*npar))
     # save fig if applicable
     if savefig:
         plt.savefig(f'{outdir}/{fname}', format='png', bbox_inches='tight')
@@ -103,28 +150,12 @@ def plot_chainconsumer(samples, truths, param_labels,
     if check_convergence and nwalkers is not None:
         # the following seems to throw an error in debug mode so lets not run then
         # print out convergence diagnostics
-        gelman_rubin_converged = c.diagnostic.gelman_rubin()
-        geweke_converged = c.diagnostic.geweke()
-
-        print(f'\ngelman_rubin_converged: {gelman_rubin_converged}\n')
-        print(f'geweke_converged: {geweke_converged}\n')
+        print(f'\ngelman rubin:\n{gdsample.getGelmanRubin()}; should be << 1 for good convergence\n')
 
     if get_bestfits:
-        import numpy as np
-        bestfit, bestfit_low, bestfit_upp = np.zeros(npar), np.zeros(npar), np.zeros(npar)
+        bestfit, bestfit_sigma = gdsample.getMeans(), np.sqrt(gdsample.getVars())
 
-        # get mean bestfit from ChainConsumer
-        out = c.analysis.get_summary(chains=c.get_mcmc_chains())
-        for i, key in enumerate(out):
-            bestfit[i] = out[key][1]
-            if out[key][0] is not None:
-                bestfit_low[i] = out[key][1] - out[key][0]
-                bestfit_upp[i] = out[key][2] - out[key][1]
-            else:
-                bestfit_low[i] = np.nan
-                bestfit_upp[i] = np.nan
-
-        return bestfit, bestfit_low, bestfit_upp
+        return bestfit, bestfit_sigma
     # ---------------------------------------------
 # ------------------------------------------------------------------------------
 def plot_chainvals(chain_unflattened, outdir, npar,
