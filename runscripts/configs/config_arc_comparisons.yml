@@ -1,0 +1,103 @@
+paths:
+     datadir: '/home/hawan/deepskies/cmbcosmo/outdir/'
+
+# sbi cases
+sbi_cases:
+    # impacts of embedding
+    embedding:
+        param_to_vary: 'embedding'
+        r+alens-1000sims:
+            nsims: 1000
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.00<=r<1.00_0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: ['noembedding', 'withembedding-20outdim-5-nlayers-30-nhidden', 'withembedding-optimized']
+            params_to_fit: ['r', 'Alens']
+        r+alens-5000sims:
+            nsims: 5000
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.00<=r<1.00_0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding:  ['noembedding', 'withembedding-20outdim-5nlayers-30nhidden', 'withembedding-optimized']
+            params_to_fit: ['r', 'Alens']
+        r+alens-10000sims:
+            nsims: 10000
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.00<=r<1.00_0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: ['noembedding', 'withembedding-20outdim-5nlayers-30nhidden', 'withembedding-optimized']
+            params_to_fit: ['r', 'Alens']
+    # impacts of sample variance
+    sample_variance:
+        param_to_vary: 'noise'
+        r-only:
+            nsims: 10000
+            nsamples: 1000
+            noise: ['fixed-sample-var', 'sample-sample-var']
+            params: '0.00<=r<1.00'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-50outdim-5nlayers-30nhidden'
+            params_to_fit: ['r']
+        alens-only:
+            nsims: 10000
+            nsamples: 1000
+            noise: ['fixed-sample-var', 'sample-sample-var']
+            params: '0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-50outdim-5nlayers-30nhidden'
+            params_to_fit: ['Alens']
+        r+alens:
+            nsims: 10000
+            nsamples: 1000
+            noise: ['fixed-sample-var', 'sample-sample-var']
+            params: '0.00<=r<1.00_0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-20outdim-5nlayers-30nhidden'
+            params_to_fit: ['r', 'Alens']
+    # impacts of nsims - sample-sample-var
+    nsims:
+        param_to_vary: 'nsims'
+        r-only:
+            nsims: [1000, 5000, 10000]
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.00<=r<1.00'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-optimized'
+            params_to_fit: ['r']
+        alens-only:
+            nsims: [1000, 5000, 10000]
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-optimized'
+            params_to_fit: ['Alens']
+        r+alens:
+            nsims: [1000, 5000, 10000]
+            nsamples: 1000
+            noise: 'sample-sample-var'
+            params: '0.00<=r<1.00_0.50<=Alens<1.50'
+            lmin_lmax: [5,300]
+            embedding: 'withembedding-optimized'
+            params_to_fit: ['r', 'Alens']
+
+# general params
+general-params:
+    sbc_plots_nbins: 20
+    sbi_posterior_nsample: 1000
+    sbi_posterior_sampleseed: 1425
+
+# info re the datavector
+datavector:
+    cosmo: {'r': 0.04, 'Alens': 1.0}
+    fsky: 0.9
+    camb_params: {
+        'ini': '/home/hawan/deepskies/cmbcosmo/runscripts/configs/planck_2018.ini',
+        'Init.power.At': 1,
+        'WantTensor': True,
+        'WantTransfer': False
+        }
