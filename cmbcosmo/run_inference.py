@@ -124,7 +124,7 @@ truths = np.zeros(npar)
 for i, param in enumerate(params_to_fit):
     truths[i] = datavector_param_dict[param]
 # set up datadir
-datadir = config_data['paths']['outdir'] + 'data'
+datadir = basedir + 'data'
 # make sure folder exists
 os.makedirs(datadir, exist_ok=True)
 print(f'## datadir: {datadir}')
@@ -146,7 +146,7 @@ if gen_data:
                                        add_sample_variance=False,
                                        writetodisk=True,
                                        plot_things=True, plot_tag='data')
-    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
+    cov = theory.get_cov(param_dict=datavector_param_dict,
                          readfromdisk=False,
                          plot_things=True, plot_tag='')
     print('## exiting. rerun the script without gen-data flag to run inference.')
@@ -157,7 +157,7 @@ else:
                                        add_sample_variance=False,
                                        readfromdisk=True, writetodisk=False,
                                        plot_things=False)
-    cov = theory.get_cov(param_dict=config_data['datavector']['cosmo'],
+    cov = theory.get_cov(param_dict=datavector_param_dict,
                          readfromdisk=True,
                          plot_things=False, plot_tag='')
 # set up ells
@@ -183,7 +183,7 @@ if run_mcmc:
                 + config_data['outtag'] + '_' + datatag
     if debug:
         outdir = f'debug_{outdir}'
-    outdir = config_data['paths']['outdir'] + outdir
+    outdir = basedir + outdir
     # make sure folder exists
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving mcmc stuff in {outdir}')
@@ -461,12 +461,12 @@ if run_sbi:
         else:
             embedding_params = embed_details['embedding_params']
             outdir += f'_withembedding-{embedding_params["outdim"]}outdim-' +  \
-                    f'{embedding_params["nlayers"]}-nlayers-{embedding_params["nhidden"]}-nhidden'
+                    f'{embedding_params["nlayers"]}nlayers-{embedding_params["nhidden"]}nhidden'
     else:
         outdir += '_noembedding'
     if debug:
         outdir = f'debug_{outdir}'
-    outdir = config_data['paths']['outdir'] + outdir
+    outdir = basedir + outdir
     # make sure folder exists
     os.makedirs(outdir, exist_ok=True)
     print(f'## saving sbi stuff in {outdir}')
@@ -1051,6 +1051,7 @@ if not run_mcmc and not run_sbi:
     quit()
 
 print(f'\n## processing results (if applicable) .. \n')
+color_truth = 'k'
 # now plot things
 for tech_tag in samples:
     outdir = outdirs[tech_tag]
@@ -1060,7 +1061,7 @@ for tech_tag in samples:
     out = plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                              truths=truths,
                              param_labels=param_labels,
-                             color_posterior=None, color_truth=None,
+                             color_posterior=None, color_truth=color_truth,
                              starts=starts, nwalkers=nwalkers,
                              color_starts='r',
                              showplot=False, savefig=False, fname=fname, outdir=outdir,
@@ -1099,7 +1100,7 @@ for tech_tag in samples:
     out = plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                              truths=truths,
                              param_labels=param_labels,
-                             color_posterior=None, color_truth=None,
+                             color_posterior=None, color_truth=color_truth,
                              starts=starts, nwalkers=nwalkers,
                              color_starts='r',
                              showplot=False, savefig=True, fname=fname, outdir=outdir,
@@ -1111,7 +1112,7 @@ for tech_tag in samples:
     plot_posteriors(samples=samples[tech_tag], loglikes=loglikes[tech_tag],
                        truths=truths,
                        param_labels=param_labels,
-                       color_posterior=None, color_truth=None,
+                       color_posterior=None, color_truth=color_truth,
                        starts=starts, nwalkers=nwalkers,
                        color_starts='r',
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
