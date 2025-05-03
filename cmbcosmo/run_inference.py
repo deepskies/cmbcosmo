@@ -54,6 +54,8 @@ parser.add_option('--embed',
 parser.add_option('--optimize-embed',
                   action='store_true', dest='embed_optimized', default=False,
                   help='optimize the hyperparams for the embedding network.')
+parser.add_option('--noise', default=None,
+                   dest='noise',)
 # ------------------------------------------------------------------------------
 start_time = time.time()
 (options, args) = parser.parse_args()
@@ -75,6 +77,7 @@ use_infer_sims_from_tag = options.use_infer_sims_from_tag
 embed = options.embed
 embed_optimized = options.embed_optimized
 debug = options.debug
+noise = options.noise
 # deal with imports
 if run_mcmc:
     import emcee as emcee
@@ -452,8 +455,15 @@ if run_sbi:
     sbi_dict = config_data['inference']['sbi']
     nsims = sbi_dict['infer_nsims']
     nsamples = sbi_dict['posterior_nsamples']
+    # set up the noisetag
+    if noise == 'sample-based-sample-var':
+        noisetag = 'sample-sample-var_'
+    elif noise == 'fixed-sample-var':
+        noisetag = 'fixed-sample-var_'
+    else:
+        raise ValueError('## unclear what noise to use.')
     # set up the outdir
-    outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_' + config_data['outtag'] + '_' + datatag
+    outdir = f'lk_sbi_{nsims}nsims_{nsamples}nsamples_{noisetag}' + config_data['outtag'] + '_' + datatag
     if embed:
         embed_details = sbi_dict["embedding"]
         if embed_optimized:
@@ -472,7 +482,10 @@ if run_sbi:
     print(f'## saving sbi stuff in {outdir}')
 
     # extract the cov diagonal for the sample variance
-    sigma_sample_variance = np.sqrt(cov.diagonal())
+    if noise == 'sample-based-sample-var':
+        sigma_sample_variance  = None
+    if noise == 'fixed-sample-var':
+        sigma_sample_variance = np.sqrt(cov.diagonal())
 
     # construct prior
     low = [param_priors[i][0] for i in range(npar)]
