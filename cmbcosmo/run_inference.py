@@ -10,6 +10,7 @@ from cmbcosmo.helpers_misc import get_time_passed
 from cmbcosmo.settings import *
 from multiprocessing import Pool
 from helpers_plots import plot_posteriors
+import shutil
 # ------------------------------------------------------------------------------
 from optparse import OptionParser
 parser = OptionParser()
@@ -42,6 +43,11 @@ parser.add_option('--reanalyze-sbi-checks',
 parser.add_option('--no-sbi-checks',
                   action='store_true', dest='no_sbi_checks', default=False,
                   help='use to not run any sbi checks.')
+parser.add_option('--use-infer-sims-from-tag',
+                  dest='use_infer_sims_from_tag', default=None,
+                  help='use prior-sampled sims from before; these are' +
+                        'generally generated for inference (and saved for ' +
+                        'checks). will look for the folder with tag specified')
 parser.add_option('--embed',
                   action='store_true', dest='embed', default=False,
                   help='use an embedding network.')
@@ -65,6 +71,7 @@ restart_mcmc = options.restart_mcmc
 reanalyze_sbi = options.reanalyze_sbi
 reanalyze_sbi_checks = options.reanalyze_sbi_checks
 no_sbi_checks = options.no_sbi_checks
+use_infer_sims_from_tag = options.use_infer_sims_from_tag
 embed = options.embed
 embed_optimized = options.embed_optimized
 debug = options.debug
@@ -101,6 +108,7 @@ if debug:
     config_data['inference']['sbi']['sbc_nsamples'] = 5
     config_data['inference']['sbi']['embedding']['optimization_params']['ntrials'] = 5
 # now pull some things from the config
+basedir = config_data['paths']['outdir']
 params_to_fit = config_data['inference']['params_to_fit']
 param_labels = config_data['inference']['param_labels']
 param_priors = config_data['inference']['param_priors']
@@ -524,20 +532,45 @@ if run_sbi:
         # check prior, simulator
         check_sbi_inputs(simulator=simulator, prior=prior)
         # generate simulations - using samples from prior
-        time1 = time.time()
-        thetas, xs = simulate_for_sbi(simulator=simulator,
-                                      proposal=prior, num_simulations=nsims,
-                                      seed=sbi_dict['infer_seed'],
-                                      show_progress_bar=True,
-                                      simulation_batch_size=int(nsims/ncpus),
-                                      num_workers=ncpus
-                                      )
-        print(f'## time taken for sims: {get_time_passed(time0=time1)}')
-        # ---
-        # lets save the sims for later reuse
         fname_sims = f'sbi_prior-sampled-sims_{nsims}sims_{sbi_dict["infer_seed"]}seed.pickle'
-        pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname_sims}', 'wb'))
-        print(f'\n## saved prior-sampled sims as {fname_sims}')
+        if use_infer_sims_from_tag is not None:
+            # reuse sbi sims from before
+            # lets first locate the file
+            potential_folder = [f for f in os.listdir(basedir) if
+                                f.__contains__(f'{nsims}nsims_') and
+                                f.__contains__(f'{noisetag}{config_data["outtag"]}_lmin') and
+                                f.__contains__(datatag) and
+                                f.__contains__(use_infer_sims_from_tag)
+                                ]
+            if len(potential_folder) != 1:
+                raise ValueError(f'couldnt find the folder with tag = {use_infer_sims_from_tag}')
+            else:
+                sims_folder = f'{basedir}/{potential_folder[0]}'
+                print(f'## found potential folder with sims to use for inference: {sims_folder}')
+                # ok see if the fname for this nsims exists
+                if not os.path.exists(f'{sims_folder}/{fname_sims}'):
+                    raise ValueError(f'cant reuse sims since {fname_sims} not found in {sims_folder}.')
+                else:
+                    print(f'## reading in prior-sampled sims from {fname_sims}')
+                    print(f'## also creating a copy of it in {outdir}')
+                    shutil.copyfile(f'{sims_folder}/{fname_sims}', f'{outdir}/{fname_sims}')
+                    # now read
+                    out = pickle.load( open(f'{outdir}/{fname_sims}', 'rb') )
+                    thetas, xs = out['thetas'], out['xs']
+        else:
+            time1 = time.time()
+            thetas, xs = simulate_for_sbi(simulator=simulator,
+                                        proposal=prior, num_simulations=nsims,
+                                        seed=sbi_dict['infer_seed'],
+                                        show_progress_bar=True,
+                                        simulation_batch_size=int(nsims/ncpus),
+                                        num_workers=ncpus
+                                        )
+            print(f'## time taken for sims: {get_time_passed(time0=time1)}')
+            # ---
+            # lets save the sims for later reuse
+            pickle.dump({'thetas': thetas, 'xs': xs}, open(f'{outdir}/{fname_sims}', 'wb'))
+            print(f'\n## saved prior-sampled sims as {fname_sims}')
         # ---
         # inference setup
         if embed:
