@@ -2,26 +2,27 @@ from cmbcosmo.settings import *
 from getdist import plots as gdplots
 from getdist import MCSamples as gdsamples
 import numpy as np
+import matplotlib
 
 __all__ = ['plot_posteriors', 'plot_chainvals']
 # ------------------------------------------------------------------------------
 def plot_posteriors(samples, loglikes, truths, param_labels,
-                       color_posterior, color_truth,
-                       starts=None, nwalkers=None, color_starts='r',
-                       showplot=False, savefig=False,
-                       fname=None, outdir=None,
-                       get_bestfits=False, check_convergence=False,
-                       param_ranges=None, title=None
-                       ):
+                    color_posterior, color_truth,
+                    starts=None, nwalkers=None, color_starts='r',
+                    showplot=False, savefig=False,
+                    fname=None, outdir=None,
+                    get_bestfits=False, check_convergence=False,
+                    param_ranges=None, title=None, legend_loc=None
+                    ):
     """
     
     Function to plot posteriors.
 
     Required inputs
     ---------------
-    * samples: arr: samples to plot; could be flattened or not; unflattened
-                    needed to check convergence.
-    * loglikes: arr: loglikehood values; used for checking convergence.
+    * samples: arr or dict of arrs: samples to plot; could be flattened or
+                                     not; unflattened needed to check convergence.
+    * loglikes: arr or dict of arrs: loglikehood values; used for checking convergence.
     * truths: arr: truth values
     * param_labels: arr: labels for the parameters constrained
     * color_posterior: str: color for posterior; could be None
@@ -43,8 +44,8 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
                   Default: None
     * outdir: str: output directory path.
                    Default: None
-    * get_bestfits: bool: set to True to return bestfits.
-                          Defaut: False
+    * get_bestfits: bool: set to True to return bestfits; return will mirror
+                    the shape/type of samples. Defaut: False
     * check_convergence: boool: set to True to check convergence using
                                 chainconsumer. Default: False
     * param_ranges: list: param ranges to impose on the subplots.
@@ -60,7 +61,22 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
     # get nparameters
     npar = len(param_labels)
     # set up the getdist samples
-    gdsample = gdsamples(samples=samples, names=param_labels, loglikes=loglikes)
+    gdsamples_list = []
+    if isinstance(samples, dict):
+        # need to loop over samples
+        for key in samples:
+            if loglikes is not None:
+                loglike = loglikes[key]
+            else:
+                loglike = None
+            gdsamples_list.append(
+                gdsamples(samples=samples[key], names=param_labels,
+                         loglikes=loglike, label=key)
+            )
+    else:
+        gdsamples_list.append(
+            gdsamples(samples=samples, names=param_labels, loglikes=loglikes)
+        )
 
     # set up the plot
     plt.clf()
@@ -73,7 +89,8 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
     g.settings.alpha_factor_contour_lines = 1
     g.settings.lw_contour = 1
     g.settings.norm_1d_density = True
-    g.triangle_plot(gdsample,
+    g.settings.legend_fontsize = 16
+    g.triangle_plot(gdsamples_list,
                     filled=True,
                     params=param_labels,
                     contour_colors=color_posterior
@@ -86,15 +103,27 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
             ax = g.subplots[nrow, ncol]
             if nrow == ncol:
                 # get confidence interval under the curve
-                dens = gdsample.get1DDensity(param_labels[nrow])
-                lb = gdsample.confidence(nrow, 0.16)
-                ub = gdsample.confidence(nrow, 0.16, upper=True)
-                ax.fill_between(dens.x, dens.P, where=(dens.x > lb) & (dens.x < ub), alpha=0.25)
+                for i, gdsample in enumerate(gdsamples_list):
+                    dens = gdsample.get1DDensity(param_labels[nrow])
+                    lb = gdsample.confidence(nrow, 0.16)
+                    ub = gdsample.confidence(nrow, 0.16, upper=True)
+                    color = None
+                    if color_posterior is not None:
+                        if isinstance(color_posterior, list):
+                            color = color_posterior[i]
+                        else:
+                            color = color_posterior
+                    ax.fill_between(dens.x, dens.P,
+                                    where=(dens.x > lb) & (dens.x < ub),
+                                    color=color, alpha=0.25)
 
             # deal with the grid
             if ax is not None:
                 ax.grid(False)
 
+    if legend_loc is not None:
+        legend = fig.legends[0]
+        legend.set_bbox_to_anchor(legend_loc)
     # deal with the truths
     if truths is not None:
         ls = '--'
@@ -150,10 +179,17 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
     if check_convergence and nwalkers is not None:
         # the following seems to throw an error in debug mode so lets not run then
         # print out convergence diagnostics
-        print(f'\ngelman rubin:\n{gdsample.getGelmanRubin()}; should be << 1 for good convergence\n')
+        for gdsample in gdsamples_list:
+            print(f'\ngelman rubin:\n{gdsample.getGelmanRubin()}; should be << 1 for good convergence\n')
 
     if get_bestfits:
-        bestfit, bestfit_sigma = gdsample.getMeans(), np.sqrt(gdsample.getVars())
+        if isinstance(samples, dict):
+            bestfit, bestfit_sigma = {}, {}
+            for gdsample in gdsamples_list:
+                key = gdsample.getLabel()
+                bestfit[key], bestfit_sigma[key] = gdsample.getMeans(), np.sqrt(gdsample.getVars())
+        else:
+            bestfit, bestfit_sigma = gdsample.getMeans(), np.sqrt(gdsample.getVars())
 
         return bestfit, bestfit_sigma
     # ---------------------------------------------
