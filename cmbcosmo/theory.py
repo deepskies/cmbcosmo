@@ -80,12 +80,6 @@ class theory(object):
                              Default: False
         * plot_tag: str: tag to add to the saved plot fname.
                          Default: ''
-        * return_unflat: bool: set to True to get the dictionary, not
-                               the flattened array.
-                               Default: False
-        * return_ell_keys_too: bool: set to True to get ells, stacked spectra,
-                               and keys, and not just the stacked spectra.
-                               Default: False
 
         Returns
         -------

@@ -101,8 +101,8 @@ if run_sbi:
 # set up the config
 config_data = setup_config(config_path=config_path)
 if debug:
-    config_data['inference']['mcmc']['nwalkers'] = 5
-    config_data['inference']['mcmc']['max_nsteps'] = 10
+    config_data['inference']['mcmc']['nwalkers'] = 10
+    config_data['inference']['mcmc']['max_nsteps'] = 4
     config_data['inference']['mcmc']['check_every_nsteps'] = 2
     config_data['inference']['sbi']['infer_nsims'] = 10
     config_data['inference']['sbi']['posterior_nsamples'] = 10
@@ -373,7 +373,7 @@ if run_mcmc:
                         break
                     old_tau = tau
     else:
-        print('## starting mcmc run ... ')
+        print(f'## starting mcmc run, with {nwalkers} walkers ... ')
         backend.reset(nwalkers, npar)
         nsteps_backend = 0
         with Pool() as pool:
@@ -1083,6 +1083,7 @@ if not run_mcmc and not run_sbi:
 
 print(f'\n## processing results (if applicable) .. \n')
 color_truth = 'k'
+
 # now plot things
 for tech_tag in samples:
     outdir = outdirs[tech_tag]

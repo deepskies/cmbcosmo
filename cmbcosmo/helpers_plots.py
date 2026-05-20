@@ -46,7 +46,7 @@ def plot_posteriors(samples, loglikes, truths, param_labels,
                    Default: None
     * get_bestfits: bool: set to True to return bestfits; return will mirror
                     the shape/type of samples. Defaut: False
-    * check_convergence: boool: set to True to check convergence using
+    * check_convergence: bool: set to True to check convergence using
                                 chainconsumer. Default: False
     * param_ranges: list: param ranges to impose on the subplots.
                           Default: None

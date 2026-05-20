@@ -48,6 +48,8 @@ inference:
         infer_nsims: 1000
         infer_seed: 214
         # embedding params; applicable only if embed (user flag) is used
+        # not really needed if ell-binning is happening for the spectra (see datavector
+        # config above)
         embedding:
             # input_dim will be nells, based on lmin, lmax
             # optimization params: applicable if optimize-embed (user flag) is used
@@ -57,7 +59,7 @@ inference:
                 outdim_range: [5, 100]
                 nlayers_range: [1, 15]
                 nhidden_range: [10, 100]
-            # embedding hyperparams to be used if the params are not optimized
+            # embedding hyperparams to be used if the params are not optimized. ad hoc.
             embedding_params:
                 outdim: 20
                 nlayers: 2
