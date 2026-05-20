@@ -12,6 +12,8 @@ paths:
 datavector:
     cosmo: {'r': 0.04, 'Alens': 1.0}
     lmin_lmax: [5,300]
+    ell_binning: True
+    nells: 20
     fsky: 0.9
     camb_params: {
         'ini': '/home/hawan/deepskies/cmbcosmo/runscripts/configs/planck_2018.ini',

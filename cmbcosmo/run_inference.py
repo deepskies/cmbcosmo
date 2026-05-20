@@ -134,9 +134,16 @@ print(f'## datadir: {datadir}')
 # -----------------------------------------------
 # set up the data vector and the theory object
 lmin, lmax = config_data['datavector']['lmin_lmax']
+binned = config_data['datavector']['ell_binning']
 cls_to_consider = ['BB']
-nells = int(lmax - lmin + 1) * len(cls_to_consider)
+if binned:
+    nells = config_data['datavector']['nells']
+    if embed:
+        print('## NOTE: embedding with binning might be superfluous.')
+else:
+    nells = int(lmax - lmin + 1) * len(cls_to_consider)
 theory = theory(lmin=lmin, lmax=lmax,
+                binned=binned, nells=nells,
                 fsky=config_data['datavector']['fsky'],
                 outdir=datadir,
                 camb_params=config_data['datavector']['camb_params'],
@@ -164,7 +171,7 @@ else:
                          readfromdisk=True,
                          plot_things=False, plot_tag='')
 # set up ells
-ells = np.arange(lmin, lmax+1)
+ells = theory.ells
 # add a tag for the datavector
 datatag = f'lmin{lmin}_lmax{lmax}_BB-only'
 # -----------------------------------------------
