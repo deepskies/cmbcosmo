@@ -4,6 +4,8 @@ from cmbcosmo.settings import *
 import numpy as np
 from scipy.stats import truncnorm
 import os
+from scipy.stats import binned_statistic
+
 # get theory predictions
 class theory(object):
     """
@@ -13,6 +15,7 @@ class theory(object):
     """
     # ---------------------------------------------
     def __init__(self, lmin, lmax, camb_params, base_params,
+                 binned=True, nells=10,
                  fsky=1.0, outdir=None,
                  ):
         """
@@ -25,29 +28,33 @@ class theory(object):
 
         Optional inputs
         ----------------
-        * cls_to_consider: list: list of cls to consider.
-                                 Default: ['clTT', 'clEE', 'clBB', 'clEB']
+        * binned: bool: set to False to not bin the spectra.
+                        Default: True.
         * fsky: float: fraction of sky to consider.
                        Default: 1.0
-        * verbose: bool: set to True to enable print statements
-                         from deepcmbsim. Default: False
         * outdir: str or None
-        * detector_noise: bool: set to False if dont want to have
-                                detector white noise added to the
-                                signal. Default: True.
         
         """
         # store things
         self.lmin = lmin
         self.lmax = lmax
+        self.binned = binned
         self.fsky = fsky
         self.camb_params = camb_params
         self.base_params = base_params
         self.outdir = outdir
         # set up the datatag (to be appended to output fileames)
         self.data_tag = f'lmin{lmin}_lmax{lmax}_1spectra'
-        # nells
-        self.nells = int(lmax - lmin + 1)
+        # set up ells based on lmin, lmax
+        self.ells = np.arange(self.lmin, self.lmax+1)
+        # deal with binning
+        if self.binned:
+            self.ells_unbinned = self.ells
+            #self.edges = np.arange(self.lmin, self.lmax+delta_ell, delta_ell)
+            self.edges = np.logspace(np.log10(self.lmin), np.log10(self.lmax), nells+1)
+            self.ells, _, _ = binned_statistic(self.ells, self.ells,
+                                               statistic='mean', bins=self.edges)
+            self.data_tag += f'_binned-nells{nells}'
 
     # ---------------------------------------------
     def get_prediction(self, param_dict, add_sample_variance,
@@ -118,15 +125,16 @@ class theory(object):
             results = camb.get_results(pars)
             # extract BB
             cls = results.get_total_cls(self.lmax, CMB_unit='muK')[self.lmin:self.lmax+1,2]
-            # set up ells based on lmin, lmax
-            ells = np.arange(self.lmin, self.lmax+1)
-
+            # bin if needed
+            if self.binned:
+                cls, _, _ = binned_statistic(self.ells_unbinned, cls,
+                                             statistic='mean', bins=self.edges)
             # now add sample variance, if applicable
             if add_sample_variance:
                 # first check if the sigma from the sample variance is available
                 if sigma_to_use is None:
                     # calculate
-                    sigma_sample_var = np.sqrt( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
+                    sigma_sample_var = np.sqrt( cls**2 * (2 / (self.fsky * (2 * self.ells + 1))) )
                 else:
                     sigma_sample_var = sigma_to_use
                 # now add random pick from a normal distribution with sigma being the sigma from sample variance
@@ -144,7 +152,7 @@ class theory(object):
                                     )
 
             if writetodisk:
-                np.savez_compressed(fname, cls=cls, ells=ells)
+                np.savez_compressed(fname, cls=cls, ells=self.ells)
                 print(f'## saved cls in {fname}')
                 # also save the camb params object
                 fname = f'{self.outdir}/cambparams_{self.data_tag}_{param_tag}.npz'
@@ -153,7 +161,7 @@ class theory(object):
 
             if plot_things:
                 plt.clf()
-                plt.loglog(ells, cls, '.-')
+                plt.loglog(self.ells, cls, '.-')
                 plt.xlabel(r'$\ell$')
                 plt.ylabel(r'$C_{\ell,BB}$')
                 if add_sample_variance:
@@ -204,15 +212,13 @@ class theory(object):
             else:
                 raise ValueError(f'## cov not saved to disk. rerun with readfromdisk=False.')
         else:
-            # set up ls
-            ells = np.arange(self.lmin, self.lmax+1)
             # set up the cov
             cls = self.get_prediction(param_dict=param_dict, add_sample_variance=False, sigma_to_use=None)
             # now set up the (diagonal) covariance with sample variance
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
-            cov = np.diag( cls**2 * (2 / (self.fsky * (2 * ells + 1))) )
+            cov = np.diag( cls**2 * (2 / (self.fsky * (2 * self.ells + 1))) )
             # save data
-            np.savez_compressed(fname, cov=cov, ells=ells)
+            np.savez_compressed(fname, cov=cov, ells=self.ells)
             print(f'## saved cov in {fname}')
             # plot if specified
             if plot_things:
@@ -228,25 +234,23 @@ class theory(object):
                 plt.colorbar()
                 # plot details
                 ax = plt.gca()
-                # minor ticks
-                ticks_minor = np.arange(delta_l/2, len(cov), delta_l)
-                ax.set_xticks(ticks_minor, minor=True)
-                ax.set_yticks(ticks_minor, minor=True)
-                ax.tick_params(axis='both', labelsize=18, which='minor')
-                ax.tick_params(axis='both', pad=2, which='minor')
-                # tick labels
-                label = [r'$C_{\ell,BB}$']
-                ax.set_xticklabels(label, minor=True) #rotation=90)
-                ax.set_yticklabels(label, minor=True) #rotation=90)
+                # deal with grid lines etc
+                if self.binned:
+                    ax.grid(False)
                 # major ticks
                 ticks_major = np.arange(min_, max_+1, delta_l)
+                # set major ticks
                 ax.set_xticks(ticks_major, minor=False)
                 ax.set_yticks(ticks_major, minor=False)
+                # formatting
+                ax.tick_params(axis='both', labelsize=12,
+                                which='major', labelcolor='grey', pad=2)
+                # axis labels
+                ax.set_xlabel(r'$C_{\ell,BB}$')
+                ax.set_ylabel(r'$C_{\ell,BB}$')
                 # format tick labels
                 ax.xaxis.set_major_formatter(FormatStrFormatter("%.f"))
                 ax.yaxis.set_major_formatter(FormatStrFormatter("%.f"))
-                ax.tick_params(axis='both', labelsize=12,
-                            which='major', labelcolor='grey', pad=2)
                 # save plot
                 fname = f'plot_cov{plot_tag}_{self.data_tag}_{param_tag}.png'
                 plt.savefig(f'{self.outdir}/{fname}',
