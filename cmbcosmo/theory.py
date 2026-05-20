@@ -177,7 +177,7 @@ class theory(object):
         return cls
 
     # ---------------------------------------------
-    def get_cov(self, param_dict, readfromdisk=True,
+    def get_cov(self, param_dict, writetodisk=True, readfromdisk=True,
                 plot_things=False, plot_tag=''):
         """
 
@@ -217,9 +217,10 @@ class theory(object):
             # now set up the (diagonal) covariance with sample variance
             # now set up: (\Delta C_ell / C_ell)^2 =  2 /  ( fsky * (2ell + 1) ). assume fsky=1 for now.
             cov = np.diag( cls**2 * (2 / (self.fsky * (2 * self.ells + 1))) )
-            # save data
-            np.savez_compressed(fname, cov=cov, ells=self.ells)
-            print(f'## saved cov in {fname}')
+            if writetodisk:
+                # save data
+                np.savez_compressed(fname, cov=cov, ells=self.ells)
+                print(f'## saved cov in {fname}')
             # plot if specified
             if plot_things:
                 from matplotlib.ticker import FormatStrFormatter

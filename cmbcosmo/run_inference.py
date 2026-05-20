@@ -175,8 +175,18 @@ ells = theory.ells
 # add a tag for the datavector
 datatag = f'lmin{lmin}_lmax{lmax}_BB-only'
 # -----------------------------------------------
+if debug:
+    if 'SLURM_CPUS_PER_TASK' in os.environ:
+        ncpus = int(os.environ['SLURM_CPUS_PER_TASK'])
+    else:
+        ncpus = 1
+else:
+    ncpus = int(os.environ['SLURM_CPUS_PER_TASK'])
+    print(f'## working with ncpus = {ncpus}')
+# ------------------------------------------------
 starts, nwalkers = None, None
 samples, loglikes, outdirs = {}, {}, {}
+nwalkers_dict, starts_dict = {}, {}
 if run_mcmc:
     print(f'\n## running mcmc .. \n')
     time0 = time.time()
@@ -454,6 +464,8 @@ if run_mcmc:
     backend, sampler = [], []
     print('# ----------')
     outdirs['mcmc'] = outdir
+    starts_dict['mcmc'] = starts
+    nwalkers_dict['mcmc'] = nwalkers
 
 if run_sbi:
     print(f'\n## running sbi .. \n')
@@ -520,9 +532,6 @@ if run_sbi:
     print('## ---')
     print(f'## setting up inference and building posterior ..')
     time0 = time.time()
-
-    ncpus = int(os.environ['SLURM_CPUS_PER_TASK'])
-    print(f'## working with ncpus = {ncpus}')
 
     posterior_fname = f'sbi_posterior_nsims{nsims}.pickle'
     if reanalyze_sbi:
@@ -724,6 +733,8 @@ if run_sbi:
                                       x=datavector
                                       ).cpu().detach().numpy()
     loglikes['sbi'] = None
+    starts_dict['sbi'] = None
+    nwalkers_dict['sbi'] = None
 
     if not no_sbi_checks:
         # ---------------------------------------------
@@ -1082,7 +1093,7 @@ for tech_tag in samples:
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=color_truth,
-                             starts=starts, nwalkers=nwalkers,
+                             starts=starts_dict[tech_tag], nwalkers=nwalkers_dict[tech_tag],
                              color_starts='r',
                              showplot=False, savefig=False, fname=fname, outdir=outdir,
                              get_bestfits=True, check_convergence=not debug
@@ -1121,7 +1132,7 @@ for tech_tag in samples:
                              truths=truths,
                              param_labels=param_labels,
                              color_posterior=None, color_truth=color_truth,
-                             starts=starts, nwalkers=nwalkers,
+                             starts=starts_dict[tech_tag], nwalkers=nwalkers_dict[tech_tag],
                              color_starts='r',
                              showplot=False, savefig=True, fname=fname, outdir=outdir,
                              get_bestfits=False, check_convergence=False,
@@ -1133,7 +1144,7 @@ for tech_tag in samples:
                        truths=truths,
                        param_labels=param_labels,
                        color_posterior=None, color_truth=color_truth,
-                       starts=starts, nwalkers=nwalkers,
+                       starts=starts_dict[tech_tag], nwalkers=nwalkers_dict[tech_tag],
                        color_starts='r',
                        showplot=False, savefig=True, fname=fname, outdir=outdir,
                        get_bestfits=False, check_convergence=False,
